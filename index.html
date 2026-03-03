@@ -14,6 +14,15 @@
       min-height: 100vh;
     }
 
+    /* ── рамка вокруг доски ───────────────────────────────────────────────── */
+    #frame {
+      position: relative;
+      background: #3a4858;
+      border-radius: 28px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    /* ── доска ────────────────────────────────────────────────────────────── */
     #scene { position: relative; }
 
     #board {
@@ -24,7 +33,7 @@
       padding: 16px;
       background: #3d4d60;
       border-radius: 18px;
-      box-shadow: inset 0 3px 10px rgba(0,0,0,0.5), 0 6px 20px rgba(0,0,0,0.4);
+      box-shadow: inset 0 3px 10px rgba(0,0,0,0.5);
     }
 
     .board-cell {
@@ -33,43 +42,127 @@
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
     }
 
+    /* ── стенки ───────────────────────────────────────────────────────────── */
+    .wall {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      color: white;
+      font-size: 22px;
+      z-index: 30;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4),
+                  inset 0 3px 0 rgba(255,255,255,0.3),
+                  inset 0 -3px 0 rgba(0,0,0,0.2);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .wall.green { background: #4caf50; }
+    .wall.cyan  { background: #29b6f6; }
+
+    /* ── фигуры ───────────────────────────────────────────────────────────── */
     .figure {
       position: absolute;
       cursor: grab;
       z-index: 10;
       user-select: none;
-      transition: none;
+      transition: transform 0.12s ease-out, filter 0.12s ease-out;
     }
-
     .figure.dragging {
       cursor: grabbing;
-      opacity: 0.88;
       z-index: 20;
+      transform: scale(1.07) translateY(-6px);
     }
-
     .figure.returning {
       transition: left 0.2s cubic-bezier(.25,.8,.25,1),
-                  top  0.2s cubic-bezier(.25,.8,.25,1);
+                  top  0.2s cubic-bezier(.25,.8,.25,1),
+                  transform 0.12s ease-out, filter 0.12s ease-out;
+    }
+    .figure canvas {
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
     }
 
-    .fig-cell {
+    /* ── призрак на сетке ────────────────────────────────────────────────── */
+    #ghost {
       position: absolute;
-      border-radius: 8px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.3),
-                  inset 0 2px 0 rgba(255,255,255,0.3),
-                  inset 0 -2px 0 rgba(0,0,0,0.2);
+      z-index: 5;
+      pointer-events: none;
+      transition: left 0.05s ease-out, top 0.05s ease-out;
+    }
+    #ghost canvas {
+      position: absolute;
+      top: 0; left: 0;
     }
   </style>
 </head>
 <body>
-  <div id="scene">
-    <div id="board"></div>
+  <div id="frame">
+    <div id="scene">
+      <div id="board"></div>
+    </div>
   </div>
 
   <script>
     const COLS = 6, ROWS = 7;
     const CELL = 64, GAP = 8, PAD = 16;
 
+    // размеры доски
+    const BOARD_W = COLS * CELL + (COLS - 1) * GAP + 2 * PAD; // 456
+    const BOARD_H = ROWS * CELL + (ROWS - 1) * GAP + 2 * PAD; // 528
+
+    // толщина рамки
+    const BORDER = 54;
+
+    // параметры стенки (2×1 клетки)
+    const WALL_LONG  = 2 * CELL + GAP;  // 136 — длинная сторона
+    const WALL_SHORT = 46;              // короткая сторона
+
+    // ── позиционируем рамку и сцену ─────────────────────────────────────────
+    const frame = document.getElementById('frame');
+    const scene = document.getElementById('scene');
+
+    frame.style.width  = (BOARD_W + 2 * BORDER) + 'px';
+    frame.style.height = (BOARD_H + 2 * BORDER) + 'px';
+
+    scene.style.position = 'absolute';
+    scene.style.left = BORDER + 'px';
+    scene.style.top  = BORDER + 'px';
+
+    // ── строим стенки ───────────────────────────────────────────────────────
+    function makeWall(color, dir) {
+      const el = document.createElement('div');
+      el.className = `wall ${color}`;
+      el.textContent = { top: '▲', bottom: '▼', right: '▶', left: '◀' }[dir];
+      const horiz = dir === 'top' || dir === 'bottom';
+      const w = horiz ? WALL_LONG  : WALL_SHORT;
+      const h = horiz ? WALL_SHORT : WALL_LONG;
+      el.style.width  = w + 'px';
+      el.style.height = h + 'px';
+      const offset = (BORDER - WALL_SHORT) / 2; // центр в полосе рамки
+      if (dir === 'top')    { el.style.left = (BORDER + (BOARD_W - WALL_LONG) / 2) + 'px'; el.style.top    = offset + 'px'; }
+      if (dir === 'bottom') { el.style.left = (BORDER + (BOARD_W - WALL_LONG) / 2) + 'px'; el.style.bottom = offset + 'px'; }
+      if (dir === 'right')  { el.style.top  = (BORDER + (BOARD_H - WALL_LONG) / 2) + 'px'; el.style.right  = offset + 'px'; }
+      if (dir === 'left')   { el.style.top  = (BORDER + (BOARD_H - WALL_LONG) / 2) + 'px'; el.style.left   = offset + 'px'; }
+      frame.appendChild(el);
+    }
+
+    makeWall('green', 'top');
+    makeWall('green', 'bottom');
+    makeWall('cyan',  'right');
+
+    // ── доска ────────────────────────────────────────────────────────────────
+    const board = document.getElementById('board');
+    for (let i = 0; i < COLS * ROWS; i++) {
+      const d = document.createElement('div');
+      d.className = 'board-cell';
+      board.appendChild(d);
+    }
+
+    // ── логика фигур ─────────────────────────────────────────────────────────
     const SHAPES = {
       '1x1': [[0,0]],
       '2x1': [[0,0],[1,0]],
@@ -83,22 +176,9 @@
       'T':   [[0,0],[1,0],[2,0],[1,1]],
       'S':   [[1,0],[2,0],[0,1],[1,1]],
       'Z':   [[0,0],[1,0],[1,1],[2,1]],
-      // жёлтая фигура из скрина:
-      //  X X .
-      //  X X X
-      //  X X .
       'fat_T': [[0,0],[1,0],[0,1],[1,1],[2,1],[0,2],[1,2]],
     };
 
-    // ─── доска ───────────────────────────────────────────────────────────────
-    const board = document.getElementById('board');
-    for (let i = 0; i < COLS * ROWS; i++) {
-      const d = document.createElement('div');
-      d.className = 'board-cell';
-      board.appendChild(d);
-    }
-
-    const scene    = document.getElementById('scene');
     const occupied = new Map();
 
     function occupyCells(fig, col, row) {
@@ -131,29 +211,114 @@
       fig._col = col;
       fig._row = row;
     }
+    // ── общий построитель path фигуры ───────────────────────────────────────
+    function buildFigurePath(ctx, cells) {
+      const set = new Set(cells.map(([c, r]) => `${c},${r}`));
+      const has = (c, r) => set.has(`${c},${r}`);
+      const R = 10;
+      ctx.beginPath();
+      cells.forEach(([dc, dr]) => {
+        const x = dc * (CELL + GAP), y = dr * (CELL + GAP);
+        const hasL = has(dc-1,dr), hasR = has(dc+1,dr);
+        const hasT = has(dc,dr-1), hasB = has(dc,dr+1);
+        const tl = (!hasL&&!hasT)?R:0, tr = (!hasR&&!hasT)?R:0;
+        const br = (!hasR&&!hasB)?R:0, bl = (!hasL&&!hasB)?R:0;
+        ctx.moveTo(x+tl, y);
+        ctx.lineTo(x+CELL-tr, y);
+        tr ? ctx.arcTo(x+CELL,y,      x+CELL,y+tr,    tr) : ctx.lineTo(x+CELL,y);
+        ctx.lineTo(x+CELL, y+CELL-br);
+        br ? ctx.arcTo(x+CELL,y+CELL, x+CELL-br,y+CELL,br) : ctx.lineTo(x+CELL,y+CELL);
+        ctx.lineTo(x+bl, y+CELL);
+        bl ? ctx.arcTo(x,y+CELL,      x,y+CELL-bl,    bl) : ctx.lineTo(x,y+CELL);
+        ctx.lineTo(x, y+tl);
+        tl ? ctx.arcTo(x,y,           x+tl,y,         tl) : ctx.lineTo(x,y);
+        ctx.closePath();
+        if (hasR) ctx.rect(x+CELL, y, GAP, CELL);
+        if (hasB) ctx.rect(x, y+CELL, CELL, GAP);
+        if (hasR && hasB && has(dc+1,dr+1)) ctx.rect(x+CELL, y+CELL, GAP, GAP);
+      });
+    }
+
+    function prepCanvas(canvas, W, H) {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width  = W * dpr; canvas.height = H * dpr;
+      canvas.style.width = W+'px'; canvas.style.height = H+'px';
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      return ctx;
+    }
+
+    // ── рисуем фигуру на canvas ──────────────────────────────────────────────
+    function drawFigureCanvas(canvas, cells, color, W, H) {
+      const ctx = prepCanvas(canvas, W, H);
+      buildFigurePath(ctx, cells);
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+      // блик сверху
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      const hl = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+      hl.addColorStop(0, 'rgba(255,255,255,0.32)');
+      hl.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = hl; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
+    // ── призрак (тень на сетке во время перетаскивания) ──────────────────────
+    const ghostEl = document.createElement('div');
+    ghostEl.id = 'ghost';
+    ghostEl.style.display = 'none';
+    scene.appendChild(ghostEl);
+    let ghostCanvas = null;
+
+    function showGhost(fig, col, row, valid) {
+      const W = fig._maxC * (CELL + GAP) + CELL;
+      const H = fig._maxR * (CELL + GAP) + CELL;
+      ghostEl.style.width  = W + 'px';
+      ghostEl.style.height = H + 'px';
+      const p = cellPos(col, row);
+      ghostEl.style.left = p.x + 'px';
+      ghostEl.style.top  = p.y + 'px';
+
+      if (!ghostCanvas) { ghostCanvas = document.createElement('canvas'); ghostEl.appendChild(ghostCanvas); }
+      const ctx = prepCanvas(ghostCanvas, W, H);
+      ctx.clearRect(0, 0, W, H);
+      buildFigurePath(ctx, fig._cells);
+      // заливка: белый (валидно) или красный (занято)
+      ctx.fillStyle = valid ? 'rgba(255,255,255,0.22)' : 'rgba(255,60,60,0.28)';
+      ctx.fill();
+      // обводка
+      ctx.strokeStyle = valid ? 'rgba(255,255,255,0.55)' : 'rgba(255,80,80,0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ghostEl.style.display = 'block';
+    }
+
+    function hideGhost() { ghostEl.style.display = 'none'; }
+
     function createFigure(shapeName, color, startCol, startRow) {
       const cells = SHAPES[shapeName];
       const maxC  = Math.max(...cells.map(c => c[0]));
       const maxR  = Math.max(...cells.map(c => c[1]));
+      const W = maxC * (CELL + GAP) + CELL;
+      const H = maxR * (CELL + GAP) + CELL;
 
       const fig = document.createElement('div');
       fig.className    = 'figure';
-      fig.style.width  = (maxC * (CELL + GAP) + CELL) + 'px';
-      fig.style.height = (maxR * (CELL + GAP) + CELL) + 'px';
+      fig.style.width  = W + 'px';
+      fig.style.height = H + 'px';
       fig._cells = cells;
       fig._maxC  = maxC;
       fig._maxR  = maxR;
+      fig._color = color;
 
-      cells.forEach(([dc, dr]) => {
-        const c = document.createElement('div');
-        c.className        = 'fig-cell';
-        c.style.width      = CELL + 'px';
-        c.style.height     = CELL + 'px';
-        c.style.left       = (dc * (CELL + GAP)) + 'px';
-        c.style.top        = (dr * (CELL + GAP)) + 'px';
-        c.style.background = color;
-        fig.appendChild(c);
-      });
+      const canvas = document.createElement('canvas');
+      drawFigureCanvas(canvas, cells, color, W, H);
+      fig.appendChild(canvas);
 
       scene.appendChild(fig);
       placeFigure(fig, startCol, startRow, false);
@@ -166,6 +331,8 @@
         const prevCol = fig._col, prevRow = fig._row;
         fig.classList.add('dragging');
         fig.style.zIndex = 20;
+        // свечение своим цветом
+        fig.style.filter = `drop-shadow(0 16px 24px rgba(0,0,0,0.55)) drop-shadow(0 0 18px ${fig._color}cc)`;
         const rect = fig.getBoundingClientRect();
         const grabX = e.clientX - rect.left;
         const grabY = e.clientY - rect.top;
@@ -177,10 +344,19 @@
           const sr = scene.getBoundingClientRect();
           fig.style.left = (e.clientX - sr.left - grabX) + 'px';
           fig.style.top  = (e.clientY - sr.top  - grabY) + 'px';
+          // призрак на сетке
+          const col = Math.round((e.clientX - sr.left - grabX - PAD) / (CELL + GAP));
+          const row = Math.round((e.clientY - sr.top  - grabY - PAD) / (CELL + GAP));
+          const clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
+          const clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
+          showGhost(fig, clampedCol, clampedRow, canPlace(fig, col, row));
         };
+
         const onUp = (e) => {
           fig.classList.remove('dragging');
+          fig.style.filter = '';
           fig.style.zIndex = 10;
+          hideGhost();
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup',   onUp);
           const sr  = scene.getBoundingClientRect();
@@ -190,28 +366,20 @@
           else                         placeFigure(fig, prevCol, prevRow, true);
           occupyCells(fig, fig._col, fig._row);
         };
+
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup',   onUp);
       });
     }
 
-    // ─── уровень ─────────────────────────────────────────────────────────────
-    //  col:  0     1     2     3     4     5
-    //  r 0:  .     .    [CY]  [CY]   .     .
-    //  r 1: [BL]   .     .     .     .    [OR]
-    //  r 2: [BL]  [YL]  [YL]  [GR]  [GR] [OR]
-    //  r 3: [BL]  [YL]  [YL]  [YL]   .     .
-    //  r 4: [GN]  [YL]  [YL]   .     .     .
-    //  r 5: [GN]   .    [CT]  [CT]  [CT]   .
-    //  r 6:  .     .     .    [CT]   .     .
-
-    createFigure('2x1',    '#29b6f6', 2, 0);  // голубой сверху
-    createFigure('1x3',    '#1a237e', 0, 1);  // синий слева
-    createFigure('1x2',    '#ef6c00', 5, 1);  // оранжевый справа
-    createFigure('fat_T',  '#fdd835', 1, 2);  // жёлтый центр
-    createFigure('2x1',    '#388e3c', 3, 2);  // зелёный верхний
-    createFigure('1x2',    '#388e3c', 0, 4);  // зелёный нижний
-    createFigure('T',      '#00bcd4', 2, 5);  // голубой низ T
+    // ── уровень ──────────────────────────────────────────────────────────────
+    createFigure('2x1',    '#29b6f6', 2, 0);
+    createFigure('1x3',    '#1a237e', 0, 1);
+    createFigure('1x2',    '#ef6c00', 5, 1);
+    createFigure('fat_T',  '#fdd835', 1, 2);
+    createFigure('2x1',    '#388e3c', 3, 2);
+    createFigure('1x2',    '#388e3c', 0, 4);
+    createFigure('T',      '#00bcd4', 2, 5);
   </script>
 </body>
 </html>
