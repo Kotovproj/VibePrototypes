@@ -7,133 +7,211 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #1a1a2e;
+      background: #7ec8e3;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
     }
 
-    #scene {
-      position: relative;
-    }
+    #scene { position: relative; }
 
     #board {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(4, 1fr);
-      gap: 12px;
-      padding: 20px;
-      background: #4f5e73;
-      border-radius: 16px;
-      box-shadow: inset 0 2px 8px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.5);
+      grid-template-columns: repeat(6, 64px);
+      grid-template-rows:    repeat(7, 64px);
+      gap: 8px;
+      padding: 16px;
+      background: #3d4d60;
+      border-radius: 18px;
+      box-shadow: inset 0 3px 10px rgba(0,0,0,0.5), 0 6px 20px rgba(0,0,0,0.4);
     }
 
-    .cell {
-      width: 80px;
-      height: 80px;
-      background: #6b7a8f;
-      border-radius: 10px;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(255,255,255,0.05);
+    .board-cell {
+      background: #2e3d4e;
+      border-radius: 8px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
     }
 
-    #figure {
+    .figure {
       position: absolute;
       cursor: grab;
       z-index: 10;
       user-select: none;
-      -webkit-user-drag: none;
-      border-radius: 10px;
+      transition: none;
     }
 
-    #figure.dragging {
+    .figure.dragging {
       cursor: grabbing;
-      opacity: 0.85;
+      opacity: 0.88;
       z-index: 20;
+    }
+
+    .figure.returning {
+      transition: left 0.2s cubic-bezier(.25,.8,.25,1),
+                  top  0.2s cubic-bezier(.25,.8,.25,1);
+    }
+
+    .fig-cell {
+      position: absolute;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3),
+                  inset 0 2px 0 rgba(255,255,255,0.3),
+                  inset 0 -2px 0 rgba(0,0,0,0.2);
     }
   </style>
 </head>
 <body>
   <div id="scene">
     <div id="board"></div>
-    <img id="figure" src="figure.png" draggable="false">
   </div>
 
   <script>
-    const COLS    = 4;
-    const ROWS    = 4;
-    const CELL    = 80;   // px — размер клетки (совпадает с CSS)
-    const GAP     = 12;   // px — совпадает с gap в CSS
-    const PADDING = 20;   // px — совпадает с padding в CSS
+    const COLS = 6, ROWS = 7;
+    const CELL = 64, GAP = 8, PAD = 16;
 
-    const FIG = CELL * 1.265;
+    const SHAPES = {
+      '1x1': [[0,0]],
+      '2x1': [[0,0],[1,0]],
+      '3x1': [[0,0],[1,0],[2,0]],
+      '1x2': [[0,0],[0,1]],
+      '1x3': [[0,0],[0,1],[0,2]],
+      '1x4': [[0,0],[0,1],[0,2],[0,3]],
+      '2x2': [[0,0],[1,0],[0,1],[1,1]],
+      'L':   [[0,0],[0,1],[0,2],[1,2]],
+      'J':   [[1,0],[1,1],[0,2],[1,2]],
+      'T':   [[0,0],[1,0],[2,0],[1,1]],
+      'S':   [[1,0],[2,0],[0,1],[1,1]],
+      'Z':   [[0,0],[1,0],[1,1],[2,1]],
+      // жёлтая фигура из скрина:
+      //  X X .
+      //  X X X
+      //  X X .
+      'fat_T': [[0,0],[1,0],[0,1],[1,1],[2,1],[0,2],[1,2]],
+    };
 
-    // --- строим клетки ---
+    // ─── доска ───────────────────────────────────────────────────────────────
     const board = document.getElementById('board');
     for (let i = 0; i < COLS * ROWS; i++) {
-      board.appendChild(Object.assign(document.createElement('div'), { className: 'cell' }));
+      const d = document.createElement('div');
+      d.className = 'board-cell';
+      board.appendChild(d);
     }
 
-    const figure = document.getElementById('figure');
-    const scene  = document.getElementById('scene');
+    const scene    = document.getElementById('scene');
+    const occupied = new Map();
 
-    figure.style.width  = FIG + 'px';
-    figure.style.height = FIG + 'px';
-
-    // --- позиционирование ---
+    function occupyCells(fig, col, row) {
+      fig._cells.forEach(([dc, dr]) => occupied.set(`${col+dc},${row+dr}`, fig));
+    }
+    function freeCells(fig) {
+      fig._cells.forEach(([dc, dr]) => occupied.delete(`${fig._col+dc},${fig._row+dr}`));
+    }
+    function canPlace(fig, col, row) {
+      col = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
+      row = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
+      return fig._cells.every(([dc, dr]) => {
+        const v = occupied.get(`${col+dc},${row+dr}`);
+        return !v || v === fig;
+      });
+    }
     function cellPos(col, row) {
-      return {
-        x: PADDING + col * (CELL + GAP),
-        y: PADDING + row * (CELL + GAP)
-      };
+      return { x: PAD + col * (CELL + GAP), y: PAD + row * (CELL + GAP) };
     }
-
-    function snapToCell(col, row) {
-      col = Math.max(0, Math.min(COLS - 1, col));
-      row = Math.max(0, Math.min(ROWS - 1, row));
+    function placeFigure(fig, col, row, animate) {
+      col = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
+      row = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
       const p = cellPos(col, row);
-      figure.style.left = (p.x - (FIG - CELL) / 2) + 'px';
-      figure.style.top  = (p.y - (FIG - CELL) / 2) + 'px';
-      figure._col = col;
-      figure._row = row;
+      if (animate) {
+        fig.classList.add('returning');
+        setTimeout(() => fig.classList.remove('returning'), 220);
+      }
+      fig.style.left = p.x + 'px';
+      fig.style.top  = p.y + 'px';
+      fig._col = col;
+      fig._row = row;
+    }
+    function createFigure(shapeName, color, startCol, startRow) {
+      const cells = SHAPES[shapeName];
+      const maxC  = Math.max(...cells.map(c => c[0]));
+      const maxR  = Math.max(...cells.map(c => c[1]));
+
+      const fig = document.createElement('div');
+      fig.className    = 'figure';
+      fig.style.width  = (maxC * (CELL + GAP) + CELL) + 'px';
+      fig.style.height = (maxR * (CELL + GAP) + CELL) + 'px';
+      fig._cells = cells;
+      fig._maxC  = maxC;
+      fig._maxR  = maxR;
+
+      cells.forEach(([dc, dr]) => {
+        const c = document.createElement('div');
+        c.className        = 'fig-cell';
+        c.style.width      = CELL + 'px';
+        c.style.height     = CELL + 'px';
+        c.style.left       = (dc * (CELL + GAP)) + 'px';
+        c.style.top        = (dr * (CELL + GAP)) + 'px';
+        c.style.background = color;
+        fig.appendChild(c);
+      });
+
+      scene.appendChild(fig);
+      placeFigure(fig, startCol, startRow, false);
+      occupyCells(fig, fig._col, fig._row);
+      attachDrag(fig);
+      return fig;
+    }
+    function attachDrag(fig) {
+      fig.addEventListener('mousedown', (e) => {
+        const prevCol = fig._col, prevRow = fig._row;
+        fig.classList.add('dragging');
+        fig.style.zIndex = 20;
+        const rect = fig.getBoundingClientRect();
+        const grabX = e.clientX - rect.left;
+        const grabY = e.clientY - rect.top;
+        freeCells(fig);
+        e.preventDefault();
+        e.stopPropagation();
+
+        const onMove = (e) => {
+          const sr = scene.getBoundingClientRect();
+          fig.style.left = (e.clientX - sr.left - grabX) + 'px';
+          fig.style.top  = (e.clientY - sr.top  - grabY) + 'px';
+        };
+        const onUp = (e) => {
+          fig.classList.remove('dragging');
+          fig.style.zIndex = 10;
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup',   onUp);
+          const sr  = scene.getBoundingClientRect();
+          const col = Math.round((e.clientX - sr.left - grabX - PAD) / (CELL + GAP));
+          const row = Math.round((e.clientY - sr.top  - grabY - PAD) / (CELL + GAP));
+          if (canPlace(fig, col, row)) placeFigure(fig, col, row, false);
+          else                         placeFigure(fig, prevCol, prevRow, true);
+          occupyCells(fig, fig._col, fig._row);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup',   onUp);
+      });
     }
 
-    snapToCell(1, 1);
+    // ─── уровень ─────────────────────────────────────────────────────────────
+    //  col:  0     1     2     3     4     5
+    //  r 0:  .     .    [CY]  [CY]   .     .
+    //  r 1: [BL]   .     .     .     .    [OR]
+    //  r 2: [BL]  [YL]  [YL]  [GR]  [GR] [OR]
+    //  r 3: [BL]  [YL]  [YL]  [YL]   .     .
+    //  r 4: [GN]  [YL]  [YL]   .     .     .
+    //  r 5: [GN]   .    [CT]  [CT]  [CT]   .
+    //  r 6:  .     .     .    [CT]   .     .
 
-    // --- drag ---
-    let dragging = false;
-    let grabX = 0, grabY = 0;
-
-    figure.addEventListener('mousedown', (e) => {
-      dragging = true;
-      figure.classList.add('dragging');
-      const rect = figure.getBoundingClientRect();
-      grabX = e.clientX - rect.left;
-      grabY = e.clientY - rect.top;
-      e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      const sr = scene.getBoundingClientRect();
-      figure.style.left = (e.clientX - sr.left - grabX) + 'px';
-      figure.style.top  = (e.clientY - sr.top  - grabY) + 'px';
-    });
-
-    document.addEventListener('mouseup', (e) => {
-      if (!dragging) return;
-      dragging = false;
-      figure.classList.remove('dragging');
-
-      const sr = scene.getBoundingClientRect();
-      const cx = e.clientX - sr.left - grabX + FIG / 2;
-      const cy = e.clientY - sr.top  - grabY + FIG / 2;
-
-      const col = Math.round((cx - PADDING - CELL / 2) / (CELL + GAP));
-      const row = Math.round((cy - PADDING - CELL / 2) / (CELL + GAP));
-
-      snapToCell(col, row);
-    });
+    createFigure('2x1',    '#29b6f6', 2, 0);  // голубой сверху
+    createFigure('1x3',    '#1a237e', 0, 1);  // синий слева
+    createFigure('1x2',    '#ef6c00', 5, 1);  // оранжевый справа
+    createFigure('fat_T',  '#fdd835', 1, 2);  // жёлтый центр
+    createFigure('2x1',    '#388e3c', 3, 2);  // зелёный верхний
+    createFigure('1x2',    '#388e3c', 0, 4);  // зелёный нижний
+    createFigure('T',      '#00bcd4', 2, 5);  // голубой низ T
   </script>
 </body>
 </html>
