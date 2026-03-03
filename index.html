@@ -2,11 +2,13 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Puzzle</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
+      overflow: hidden;
       background-color: #6bbdd4;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpolygon points='18,6 10,20 26,20' fill='rgba(255,255,255,0.2)' transform='rotate(20,18,13)'/%3E%3Cpolygon points='72,18 64,32 80,32' fill='rgba(255,255,255,0.15)' transform='rotate(-25,72,25)'/%3E%3Cpolygon points='100,8 92,22 108,22' fill='rgba(255,255,255,0.12)' transform='rotate(50,100,15)'/%3E%3Cpolygon points='38,50 30,64 46,64' fill='rgba(255,255,255,0.18)' transform='rotate(-10,38,57)'/%3E%3Cpolygon points='88,55 80,69 96,69' fill='rgba(255,255,255,0.16)' transform='rotate(35,88,62)'/%3E%3Cpolygon points='10,82 2,96 18,96' fill='rgba(255,255,255,0.2)' transform='rotate(-40,10,89)'/%3E%3Cpolygon points='55,88 47,102 63,102' fill='rgba(255,255,255,0.14)' transform='rotate(15,55,95)'/%3E%3Cpolygon points='100,80 92,94 108,94' fill='rgba(255,255,255,0.18)' transform='rotate(-15,100,87)'/%3E%3C/svg%3E");
       background-size: 120px 120px;
@@ -96,6 +98,7 @@
       cursor: grab;
       z-index: 10;
       user-select: none;
+      touch-action: none;
       transition: transform 0.12s ease-out, filter 0.12s ease-out;
     }
     .figure.dragging {
@@ -524,18 +527,24 @@
       attachDrag(fig);
       return fig;
     }
+    // извлекаем clientX/Y из mouse- или touch-события
+    function getXY(e) {
+      const src = e.touches ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : e);
+      return { x: src.clientX, y: src.clientY };
+    }
+
     function attachDrag(fig) {
-      fig.addEventListener('mousedown', (e) => {
+      function startDrag(e) {
         const prevCol = fig._col, prevRow = fig._row;
         let lastValidCol = prevCol, lastValidRow = prevRow;
 
         fig.classList.add('dragging');
         fig.style.zIndex = 20;
-        // свечение своим цветом
         fig.style.filter = `drop-shadow(0 16px 24px rgba(0,0,0,0.55)) drop-shadow(0 0 18px ${fig._color}cc)`;
+        const { x: cx, y: cy } = getXY(e);
         const rect = fig.getBoundingClientRect();
-        const grabX = e.clientX - rect.left;
-        const grabY = e.clientY - rect.top;
+        const grabX = cx - rect.left;
+        const grabY = cy - rect.top;
         freeCells(fig);
         e.preventDefault();
         e.stopPropagation();
@@ -543,7 +552,6 @@
         const figW = fig._maxC * (CELL + GAP) + CELL;
         const figH = fig._maxR * (CELL + GAP) + CELL;
 
-        // стенка срабатывает только когда мышь выходит за пределы доски
         function hoveredWall(rawX, rawY) {
           const beyond = {
             left:   rawX < 0,
@@ -554,13 +562,11 @@
           return walls.find(w => beyond[w._dir]) || null;
         }
 
-        // фигура влезает в стенку, если её размер по нужной оси ≤ WALL_CELLS
         function fitsThroughWall(wall) {
           const horiz = wall._dir === 'top' || wall._dir === 'bottom';
           return horiz ? fig._maxC + 1 <= WALL_CELLS : fig._maxR + 1 <= WALL_CELLS;
         }
 
-        // фигура стоит точно в пролёте стенки (ни одна клетка не вылезает за края)
         function alignedWithWall(wall) {
           const horiz = wall._dir === 'top' || wall._dir === 'bottom';
           if (horiz) {
@@ -572,7 +578,6 @@
           }
         }
 
-        // подсвечиваем стенки во время перетаскивания
         function updateWallHighlight(rawX, rawY) {
           const w = hoveredWall(rawX, rawY);
           walls.forEach(wall => {
@@ -591,13 +596,14 @@
         }
 
         const onMove = (e) => {
+          if (e.cancelable) e.preventDefault();
+          const { x, y } = getXY(e);
           const sr   = scene.getBoundingClientRect();
-          const rawX = e.clientX - sr.left - grabX;
-          const rawY = e.clientY - sr.top  - grabY;
+          const rawX = x - sr.left - grabX;
+          const rawY = y - sr.top  - grabY;
 
           const overWall = updateWallHighlight(rawX, rawY);
           if (overWall) {
-            // фигура остаётся на последней валидной позиции
             const p = cellPos(lastValidCol, lastValidRow);
             fig.style.left = p.x + 'px';
             fig.style.top  = p.y + 'px';
@@ -605,15 +611,13 @@
             return;
           }
 
-          // вычисляем целевую клетку
-          const x = Math.max(0, Math.min(BOARD_W - figW, rawX));
-          const y = Math.max(0, Math.min(BOARD_H - figH, rawY));
-          const col = Math.round((x - PAD) / (CELL + GAP));
-          const row = Math.round((y - PAD) / (CELL + GAP));
+          const px = Math.max(0, Math.min(BOARD_W - figW, rawX));
+          const py = Math.max(0, Math.min(BOARD_H - figH, rawY));
+          const col = Math.round((px - PAD) / (CELL + GAP));
+          const row = Math.round((py - PAD) / (CELL + GAP));
           const clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
           const clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
 
-          // двигаем фигуру только если клетки свободны
           if (canPlace(fig, clampedCol, clampedRow)) {
             lastValidCol = clampedCol;
             lastValidRow = clampedRow;
@@ -633,21 +637,22 @@
           walls.forEach(w => { w.style.transform = ''; w.style.filter = ''; });
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup',   onUp);
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend',  onUp);
 
+          const { x, y } = getXY(e);
           const sr2  = scene.getBoundingClientRect();
-          const rawX = e.clientX - sr2.left - grabX;
-          const rawY = e.clientY - sr2.top  - grabY;
+          const rawX = x - sr2.left - grabX;
+          const rawY = y - sr2.top  - grabY;
           const wall = hoveredWall(rawX, rawY);
           if (wall) {
             const match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
             if (match) {
-              // ── совпадение: вспышка + частицы + удаление ────────────────
               wall.style.transition = 'transform 0.15s, filter 0.15s';
               wall.style.transform  = 'scale(1.18)';
               wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px white)';
               setTimeout(() => { wall.style.transform = ''; wall.style.filter = ''; }, 300);
 
-              // центр фигуры в координатах вьюпорта → для партиклов
               const fr = fig.getBoundingClientRect();
               spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._color);
 
@@ -660,9 +665,7 @@
                 figureCount--;
                 if (figureCount === 0) setTimeout(showWinScreen, 500);
               }, 180);
-              // клетки уже свободны (freeCells вызван при mousedown)
             } else {
-              // ── несовпадение: дрожание и возврат ────────────────────────
               placeFigure(fig, prevCol, prevRow, true);
               occupyCells(fig, fig._col, fig._row);
               fig.classList.add('shake');
@@ -670,7 +673,6 @@
               setTimeout(() => addJelly(fig), 220);
             }
           } else {
-            // дропаем на последнюю валидную позицию (всегда свободна)
             placeFigure(fig, lastValidCol, lastValidRow, false);
             addJelly(fig);
             occupyCells(fig, fig._col, fig._row);
@@ -679,7 +681,12 @@
 
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup',   onUp);
-      });
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend',  onUp);
+      }
+
+      fig.addEventListener('mousedown', startDrag);
+      fig.addEventListener('touchstart', startDrag, { passive: false });
     }
 
     // ── win screen ───────────────────────────────────────────────────────────
@@ -757,6 +764,17 @@
       confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
     }
 
+    function scaleGame() {
+      const frameW = BOARD_W + 2 * BORDER;
+      const frameH = BOARD_H + 2 * BORDER;
+      const scale = Math.min(
+        window.innerWidth  / frameW,
+        window.innerHeight / frameH,
+        1
+      ) * 0.94;
+      frame.style.transform = scale < 1 ? `scale(${scale.toFixed(4)})` : '';
+    }
+
     document.getElementById('continue-btn').addEventListener('click', () => {
       hideWinScreen();
       currentLevel = (currentLevel + 1) % LEVELS.length;
@@ -764,6 +782,7 @@
     });
     window.addEventListener('resize', () => {
       if (winScreen.classList.contains('visible')) resizeConfCanvas();
+      scaleGame();
     });
 
     // ── уровни ───────────────────────────────────────────────────────────────
@@ -827,6 +846,8 @@
 
       // создаём фигуры
       cfg.figures.forEach(f => createFigure(f.shape, f.color, f.col, f.row));
+
+      scaleGame();
     }
 
     loadLevel(0);
