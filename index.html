@@ -9,18 +9,19 @@
 
     body {
       overflow: hidden;
+      width: 100vw;
+      height: 100dvh;
       background-color: #6bbdd4;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpolygon points='18,6 10,20 26,20' fill='rgba(255,255,255,0.2)' transform='rotate(20,18,13)'/%3E%3Cpolygon points='72,18 64,32 80,32' fill='rgba(255,255,255,0.15)' transform='rotate(-25,72,25)'/%3E%3Cpolygon points='100,8 92,22 108,22' fill='rgba(255,255,255,0.12)' transform='rotate(50,100,15)'/%3E%3Cpolygon points='38,50 30,64 46,64' fill='rgba(255,255,255,0.18)' transform='rotate(-10,38,57)'/%3E%3Cpolygon points='88,55 80,69 96,69' fill='rgba(255,255,255,0.16)' transform='rotate(35,88,62)'/%3E%3Cpolygon points='10,82 2,96 18,96' fill='rgba(255,255,255,0.2)' transform='rotate(-40,10,89)'/%3E%3Cpolygon points='55,88 47,102 63,102' fill='rgba(255,255,255,0.14)' transform='rotate(15,55,95)'/%3E%3Cpolygon points='100,80 92,94 108,94' fill='rgba(255,255,255,0.18)' transform='rotate(-15,100,87)'/%3E%3C/svg%3E");
       background-size: 120px 120px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
     }
 
     /* ── рамка вокруг доски ───────────────────────────────────────────────── */
     #frame {
-      position: relative;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       background: #3a4858;
       border-radius: 28px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -220,6 +221,7 @@
 
   <script>
     let COLS, ROWS, BOARD_W, BOARD_H;
+    let gameScale = 1;
     const CELL = 64, GAP = 8, PAD = 16;
     const BORDER = 54;
 
@@ -543,7 +545,7 @@
         fig.style.filter = `drop-shadow(0 16px 24px rgba(0,0,0,0.55)) drop-shadow(0 0 18px ${fig._color}cc)`;
         const { x: cx, y: cy } = getXY(e);
         const rect = fig.getBoundingClientRect();
-        const grabX = cx - rect.left;
+        const grabX = cx - rect.left;  // экранные пиксели
         const grabY = cy - rect.top;
         freeCells(fig);
         e.preventDefault();
@@ -599,8 +601,8 @@
           if (e.cancelable) e.preventDefault();
           const { x, y } = getXY(e);
           const sr   = scene.getBoundingClientRect();
-          const rawX = x - sr.left - grabX;
-          const rawY = y - sr.top  - grabY;
+          const rawX = (x - grabX - sr.left) / gameScale;
+          const rawY = (y - grabY - sr.top)  / gameScale;
 
           const overWall = updateWallHighlight(rawX, rawY);
           if (overWall) {
@@ -642,8 +644,8 @@
 
           const { x, y } = getXY(e);
           const sr2  = scene.getBoundingClientRect();
-          const rawX = x - sr2.left - grabX;
-          const rawY = y - sr2.top  - grabY;
+          const rawX = (x - grabX - sr2.left) / gameScale;
+          const rawY = (y - grabY - sr2.top)  / gameScale;
           const wall = hoveredWall(rawX, rawY);
           if (wall) {
             const match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
@@ -767,12 +769,12 @@
     function scaleGame() {
       const frameW = BOARD_W + 2 * BORDER;
       const frameH = BOARD_H + 2 * BORDER;
-      const scale = Math.min(
+      gameScale = Math.min(
         window.innerWidth  / frameW,
         window.innerHeight / frameH,
         1
       ) * 0.94;
-      frame.style.transform = scale < 1 ? `scale(${scale.toFixed(4)})` : '';
+      frame.style.transform = `translate(-50%, -50%) scale(${gameScale.toFixed(4)})`;
     }
 
     document.getElementById('continue-btn').addEventListener('click', () => {
