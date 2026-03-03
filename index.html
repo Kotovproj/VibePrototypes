@@ -1,688 +1,139 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slide Puzzle</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            width: 100vw; height: 100vh;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden;
-            user-select: none;
-        }
-        #bg { position: fixed; top: 0; left: 0; z-index: 0; }
-        .scene { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+  <meta charset="UTF-8">
+  <title>Puzzle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        /* ── Board frame: 3×3 CSS grid ─────────────────────────────── */
-        .board-frame {
-            display: grid;
-            grid-template-columns: 56px 480px 56px;
-            grid-template-rows: 56px 480px 56px;
-        }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
 
-        /* Corners */
-        .corner { width: 56px; height: 56px; display: block; }
-        .corner-tl { transform: rotate(0deg); }
-        .corner-tr { transform: rotate(90deg); }
-        .corner-br { transform: rotate(180deg); }
-        .corner-bl { transform: rotate(270deg); }
+    #scene {
+      position: relative;
+    }
 
-        /* Top / bottom green walls */
-        .wall-top, .wall-bottom { width: 480px; height: 56px; display: block; }
-        .wall-bottom { transform: scaleY(-1); }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 12px;
+      padding: 20px;
+      background: #4f5e73;
+      border-radius: 16px;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.5);
+    }
 
-        /* Left / right gray walls */
-        .wall-left, .wall-right { width: 56px; height: 480px; display: block; }
-        .wall-right { transform: scaleX(-1); }
+    .cell {
+      width: 80px;
+      height: 80px;
+      background: #6b7a8f;
+      border-radius: 10px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(255,255,255,0.05);
+    }
 
-        /* ── Board center ────────────────────────────────────────────── */
-        .board-wrap { position: relative; width: 480px; height: 480px; }
-        .board-sprite { width: 480px; height: 480px; display: block; }
-        #pieces {
-            position: absolute; top: 0; left: 0;
-            cursor: grab;
-            touch-action: none;
-        }
-        #pieces.dragging { cursor: grabbing; }
+    #figure {
+      position: absolute;
+      cursor: grab;
+      z-index: 10;
+      user-select: none;
+      -webkit-user-drag: none;
+      border-radius: 10px;
+    }
 
-        /* ── Restart button (green_wall sprite) ─────────────────────── */
-        #restart {
-            margin-top: 12px;
-            width: 480px;
-            height: 56px;
-            background: url('green_wall.png') no-repeat center / 100% 100%;
-            border: none;
-            cursor: pointer;
-            display: block;
-            transition: transform 0.1s, filter 0.1s;
-        }
-        #restart:active { transform: scale(0.97); filter: brightness(0.9); }
-    </style>
+    #figure.dragging {
+      cursor: grabbing;
+      opacity: 0.85;
+      z-index: 20;
+    }
+  </style>
 </head>
 <body>
+  <div id="scene">
+    <div id="board"></div>
+    <img id="figure" src="figure.png" draggable="false">
+  </div>
 
-<canvas id="bg"></canvas>
-<div class="scene">
-    <div class="board-frame">
-        <!-- Row 1: corners + top wall -->
-        <img class="corner corner-tl" src="gray wall corner.png" alt="">
-        <img class="wall-top"         src="green_wall.png"       alt="">
-        <img class="corner corner-tr" src="gray wall corner.png" alt="">
+  <script>
+    const COLS    = 4;
+    const ROWS    = 4;
+    const CELL    = 80;   // px — размер клетки (совпадает с CSS)
+    const GAP     = 12;   // px — совпадает с gap в CSS
+    const PADDING = 20;   // px — совпадает с padding в CSS
 
-        <!-- Row 2: side walls + board -->
-        <img class="wall-left"        src="gray wall rectange.png" alt="">
-        <div class="board-wrap">
-            <img class="board-sprite" id="sprite" src="grid.png" alt="board">
-            <canvas id="pieces"></canvas>
-        </div>
-        <img class="wall-right"       src="gray wall rectange.png" alt="">
+    const FIG = CELL * 1.265;
 
-        <!-- Row 3: corners + bottom wall -->
-        <img class="corner corner-bl" src="gray wall corner.png" alt="">
-        <img class="wall-bottom"      src="green_wall.png"       alt="">
-        <img class="corner corner-br" src="gray wall corner.png" alt="">
-    </div>
-    <button id="restart"></button>
-</div>
-
-<script>
-// ── Background ────────────────────────────────────────────────────────────────
-const bgCanvas = document.getElementById('bg');
-const bgCtx    = bgCanvas.getContext('2d');
-const tris = Array.from({ length: 65 }, () => ({
-    x: Math.random(), y: Math.random(),
-    s: 7 + Math.random() * 10,
-    a: Math.floor(Math.random() * 4) * 90
-}));
-function drawBg() {
-    bgCanvas.width = window.innerWidth;
-    bgCanvas.height = window.innerHeight;
-    const w = bgCanvas.width, h = bgCanvas.height;
-    const g = bgCtx.createRadialGradient(w/2, h*0.44, 0, w/2, h*0.44, Math.max(w,h)*0.82);
-    g.addColorStop(0, '#94dafc'); g.addColorStop(0.45, '#6abce8'); g.addColorStop(1, '#4892c4');
-    bgCtx.fillStyle = g;
-    bgCtx.fillRect(0, 0, w, h);
-    tris.forEach(t => {
-        bgCtx.save();
-        bgCtx.translate(t.x * w, t.y * h);
-        bgCtx.rotate(t.a * Math.PI / 180);
-        bgCtx.fillStyle = 'rgba(255,255,255,0.2)';
-        bgCtx.beginPath();
-        bgCtx.moveTo(t.s*0.7, 0); bgCtx.lineTo(-t.s*0.5, -t.s*0.55); bgCtx.lineTo(-t.s*0.5, t.s*0.55);
-        bgCtx.closePath(); bgCtx.fill();
-        bgCtx.restore();
-    });
-}
-window.addEventListener('resize', drawBg);
-drawBg();
-
-// ── Grid config (CSS px, sprite displayed at 480px wide) ─────────────────────
-// Adjust ox/oy/cw/ch/gap if pieces don't align with the sprite grid
-const GRID = {
-    ox: 57, oy: 57,   // offset from sprite edge to first cell
-    cw: 85, ch: 83,   // cell size
-    gap: 8,            // gap between cells
-    r: 12,             // corner radius for pieces
-    cols: 4, rows: 4
-};
-
-// ── Pieces ────────────────────────────────────────────────────────────────────
-// cells = relative [row, col] from piece origin (offset)
-// exits: which walls this piece can escape through
-// Board walls: top=green, bottom=green, left=yellow, right=blue
-// Piece colors match wall colors:
-//   GREEN  → exits top or bottom (both green walls)
-//   YELLOW → exits left          (yellow wall)
-//   BLUE   → exits right         (blue wall)
-const INITIAL_PIECES = [
-    {
-        // YELLOW 1×2 vertical — exits left
-        cells:    [[0,0],[1,0]],
-        offset:   { row: 0, col: 0 },
-        colorTop: '#ffd428', colorBot: '#c08000',
-        exits:    ['left']
-    },
-    {
-        // GREEN 1×3 vertical — exits top or bottom
-        //  █  col 1, rows 0-2
-        //  █
-        //  █
-        cells:    [[0,0],[1,0],[2,0]],
-        offset:   { row: 0, col: 1 },
-        colorTop: '#6ee050', colorBot: '#38a828',
-        exits:    ['top', 'bottom']
-    },
-    {
-        // BLUE 1×1 — exits right
-        cells:    [[0,0]],
-        offset:   { row: 0, col: 3 },
-        colorTop: '#55aaff', colorBot: '#1166cc',
-        exits:    ['right']
-    },
-    {
-        // BLUE L-shape — exits right
-        //  █    col 2-3, rows 0-1
-        //  ██
-        cells:    [[0,0],[1,0],[1,1]],
-        offset:   { row: 0, col: 2 },
-        colorTop: '#55aaff', colorBot: '#1166cc',
-        exits:    ['right']
-    },
-    {
-        // GREEN L-shape — exits top or bottom
-        //  █    col 0-1, rows 2-3
-        //  ██
-        cells:    [[0,0],[1,0],[1,1]],
-        offset:   { row: 2, col: 0 },
-        colorTop: '#6ee050', colorBot: '#38a828',
-        exits:    ['top', 'bottom']
-    }
-];
-
-// Deep copy so restarts always get fresh objects
-function clonePieces() {
-    return INITIAL_PIECES.map(p => ({ ...p, offset: { ...p.offset }, cells: p.cells.map(c => [...c]) }));
-}
-
-let PIECES = clonePieces();
-
-// ── Canvas setup ──────────────────────────────────────────────────────────────
-const sprite  = document.getElementById('sprite');
-const pCanvas = document.getElementById('pieces');
-const pCtx    = pCanvas.getContext('2d');
-
-function initCanvas() {
-    pCanvas.width  = sprite.offsetWidth;
-    pCanvas.height = sprite.offsetHeight;
-    render();
-}
-sprite.addEventListener('load', initCanvas);
-if (sprite.complete) initCanvas();
-
-// ── Grid helpers ──────────────────────────────────────────────────────────────
-
-// Set of "row,col" strings occupied by all pieces except skipIdx
-function getOccupied(skipIdx = -1) {
-    const set = new Set();
-    PIECES.forEach((p, i) => {
-        if (i === skipIdx) return;
-        p.cells.forEach(([r, c]) => set.add(`${r + p.offset.row},${c + p.offset.col}`));
-    });
-    return set;
-}
-
-// Can piece sit at this offset without going out of bounds or overlapping others?
-function isValid(piece, offset, skipIdx) {
-    const occ = getOccupied(skipIdx);
-    for (const [r, c] of piece.cells) {
-        const ar = r + offset.row, ac = c + offset.col;
-        if (ar < 0 || ar >= GRID.rows || ac < 0 || ac >= GRID.cols) return false;
-        if (occ.has(`${ar},${ac}`)) return false;
-    }
-    return true;
-}
-
-// Search outward (Manhattan distance) for the nearest valid offset
-function findSnap(piece, target, skipIdx) {
-    for (let dist = 0; dist <= GRID.rows + GRID.cols; dist++) {
-        for (let dr = -dist; dr <= dist; dr++) {
-            for (let dc = -dist; dc <= dist; dc++) {
-                if (Math.abs(dr) + Math.abs(dc) !== dist) continue;
-                const o = { row: target.row + dr, col: target.col + dc };
-                if (isValid(piece, o, skipIdx)) return o;
-            }
-        }
-    }
-    return null;
-}
-
-// ── Drag state ────────────────────────────────────────────────────────────────
-let drag = null;
-// {pieceIdx, grabCell[r,c], grabInCellX, grabInCellY, curX, curY, startOffset, snapOffset, validSnap}
-
-// ── Animation state ───────────────────────────────────────────────────────────
-let removing   = [];   // sliding/bouncing pieces
-let particles  = [];   // burst dots
-let shockwaves = [];   // expanding rings
-
-function isOutsideGrid(x, y) {
-    const right  = GRID.ox + GRID.cols * (GRID.cw + GRID.gap);
-    const bottom = GRID.oy + GRID.rows * (GRID.ch + GRID.gap);
-    return x < GRID.ox || x > right || y < GRID.oy || y > bottom;
-}
-
-// Piece can only exit if:
-// 1. its snap position is touching the wall in the exit direction
-// 2. that wall is in the piece's allowed exits list
-function canExit(piece, snapOffset, curX, curY) {
-    const right  = GRID.ox + GRID.cols * (GRID.cw + GRID.gap);
-    const bottom = GRID.oy + GRID.rows * (GRID.ch + GRID.gap);
-    const cells  = piece.cells.map(([r, c]) => [r + snapOffset.row, c + snapOffset.col]);
-    const ok     = dir => piece.exits.includes(dir);
-
-    if (curX < GRID.ox && ok('left'))    return cells.some(([, c]) => c === 0);
-    if (curX > right   && ok('right'))   return cells.some(([, c]) => c === GRID.cols - 1);
-    if (curY < GRID.oy && ok('top'))     return cells.some(([r])   => r === 0);
-    if (curY > bottom  && ok('bottom'))  return cells.some(([r])   => r === GRID.rows - 1);
-    return false;
-}
-
-// ── Easing ────────────────────────────────────────────────────────────────────
-function easeIn(t)  { return t * t; }
-function easeOut(t) { return 1 - (1 - t) * (1 - t); }
-
-// Which wall is the cursor closest to (outside grid)
-function getExitDir(curX, curY) {
-    const right  = GRID.ox + GRID.cols * (GRID.cw + GRID.gap);
-    const bottom = GRID.oy + GRID.rows * (GRID.ch + GRID.gap);
-    const dl = GRID.ox - curX, dr = curX - right;
-    const dt = GRID.oy - curY, db = curY - bottom;
-    const m  = Math.max(dl, dr, dt, db);
-    if (dl === m) return 'left';
-    if (dr === m) return 'right';
-    if (dt === m) return 'top';
-    return 'bottom';
-}
-
-// Piece visual center in canvas coords at a given snap offset
-function pieceCenter(piece, snapOffset) {
-    const { cw: W, ch: H, gap: G } = GRID;
-    const rs = piece.cells.map(([r]) => r), cs = piece.cells.map(([, c]) => c);
-    const minR = Math.min(...rs), maxR = Math.max(...rs);
-    const minC = Math.min(...cs), maxC = Math.max(...cs);
-    const px0  = GRID.ox + snapOffset.col * (W + G);
-    const py0  = GRID.oy + snapOffset.row * (H + G);
-    return {
-        x: px0 + minC * (W + G) + ((maxC - minC) * (W + G) + W) / 2,
-        y: py0 + minR * (H + G) + ((maxR - minR) * (H + G) + H) / 2
-    };
-}
-
-// Burst particles + shockwave ring at the wall contact point
-function spawnEffects(piece, snapOffset, dir) {
-    const { cw: W, ch: H, gap: G } = GRID;
-    const c  = pieceCenter(piece, snapOffset);
-    const wx = dir === 'left'  ? GRID.ox :
-               dir === 'right' ? GRID.ox + GRID.cols * (W + G) : c.x;
-    const wy = dir === 'top'    ? GRID.oy :
-               dir === 'bottom' ? GRID.oy + GRID.rows * (H + G) : c.y;
-
-    shockwaves.push({ x: wx, y: wy, r: 6, life: 1, color: piece.colorTop });
-
-    const baseAngle = { top: -Math.PI / 2, bottom: Math.PI / 2, left: Math.PI, right: 0 }[dir];
-    for (let i = 0; i < 14; i++) {
-        const angle = baseAngle + (Math.random() - 0.5) * Math.PI;
-        const speed = 3 + Math.random() * 5.5;
-        particles.push({
-            x: wx, y: wy,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            r: 2.5 + Math.random() * 4,
-            life: 1,
-            color: Math.random() < 0.65 ? piece.colorTop : piece.colorBot
-        });
-    }
-}
-
-// Animation frame counts
-const ANIM = { slide: 10, squash: 6, bounce: 13 };
-const ANIM_TOTAL = ANIM.slide + ANIM.squash + ANIM.bounce;
-let animating = false;
-
-function startRemoveAnim(piece, snapOffset, dir) {
-    removing.push({
-        piece: { ...piece, cells: piece.cells.map(c => [...c]) },
-        snapOffset: { ...snapOffset },
-        dir, t: 0, spawned: false
-    });
-    if (!animating) { animating = true; requestAnimationFrame(tickEffects); }
-}
-
-function tickEffects() {
-    removing.forEach(item => {
-        if (!item.spawned && item.t >= ANIM.slide) {
-            item.spawned = true;
-            spawnEffects(item.piece, item.snapOffset, item.dir);
-        }
-        item.t++;
-    });
-    removing = removing.filter(r => r.t <= ANIM_TOTAL);
-
-    particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy;
-        p.vy += 0.28; p.vx *= 0.93;
-        p.life -= 0.042;
-    });
-    particles = particles.filter(p => p.life > 0);
-
-    shockwaves.forEach(s => { s.r += 5.5; s.life -= 0.052; });
-    shockwaves = shockwaves.filter(s => s.life > 0);
-
-    render();
-    if (removing.length || particles.length || shockwaves.length) {
-        requestAnimationFrame(tickEffects);
-    } else {
-        animating = false;
-    }
-}
-
-document.getElementById('restart').addEventListener('click', () => {
-    drag = null;
-    removing = []; particles = []; shockwaves = [];
-    PIECES = clonePieces();
-    pCanvas.classList.remove('dragging');
-    render();
-});
-
-function cellTopLeft(absRow, absCol) {
-    return {
-        x: GRID.ox + absCol * (GRID.cw + GRID.gap),
-        y: GRID.oy + absRow * (GRID.ch + GRID.gap)
-    };
-}
-
-function hitTest(x, y) {
-    const { cw: W, ch: H, gap: G } = GRID;
-    const hs = G / 2;
-    // Iterate in reverse so topmost piece is grabbed first
-    for (let i = PIECES.length - 1; i >= 0; i--) {
-        const p = PIECES[i];
-        // Expand each cell's hit zone by half-gap so merged gap areas are covered;
-        // pick the closest cell when multiple cells qualify.
-        let bestCell = null, bestDist = Infinity;
-        for (const [r, c] of p.cells) {
-            const ar = r + p.offset.row, ac = c + p.offset.col;
-            const cx = GRID.ox + ac * (W + G), cy = GRID.oy + ar * (H + G);
-            if (x >= cx - hs && x <= cx + W + hs && y >= cy - hs && y <= cy + H + hs) {
-                const dx = x - (cx + W / 2), dy = y - (cy + H / 2);
-                const dist = dx * dx + dy * dy;
-                if (dist < bestDist) { bestDist = dist; bestCell = [r, c]; }
-            }
-        }
-        if (bestCell) return { pieceIdx: i, grabCell: bestCell };
-    }
-    return null;
-}
-
-function computeTargetOffset(piece, curX, curY, grabCell, grabInCellX, grabInCellY) {
-    const { cw: W, ch: H, gap: G } = GRID;
-    // Pixel position of piece origin if grabbed cell is at cursor
-    const originX = curX - grabInCellX - grabCell[1] * (W + G);
-    const originY = curY - grabInCellY - grabCell[0] * (H + G);
-    return {
-        col: Math.round((originX - GRID.ox) / (W + G)),
-        row: Math.round((originY - GRID.oy) / (H + G))
-    };
-}
-
-function getXY(e) {
-    const rect = pCanvas.getBoundingClientRect();
-    const src  = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
-}
-
-// ── Events ────────────────────────────────────────────────────────────────────
-pCanvas.addEventListener('mousedown',  onDown);
-pCanvas.addEventListener('touchstart', onDown, { passive: false });
-window.addEventListener('mousemove',   onMove);
-window.addEventListener('touchmove',   onMove, { passive: false });
-window.addEventListener('mouseup',    onUp);
-window.addEventListener('touchend',   onUp);
-
-function onDown(e) {
-    e.preventDefault();
-    const { x, y } = getXY(e);
-    const hit = hitTest(x, y);
-    if (!hit) return;
-
-    const { pieceIdx, grabCell } = hit;
-    const p = PIECES[pieceIdx];
-    const absRow = grabCell[0] + p.offset.row;
-    const absCol = grabCell[1] + p.offset.col;
-    const cellPx = cellTopLeft(absRow, absCol);
-
-    drag = {
-        pieceIdx,
-        grabCell,
-        grabInCellX: x - cellPx.x,
-        grabInCellY: y - cellPx.y,
-        curX: x, curY: y,
-        startOffset: { ...p.offset },
-        snapOffset:  { ...p.offset },
-        validSnap: true
-    };
-    pCanvas.classList.add('dragging');
-    render();
-}
-
-function onMove(e) {
-    if (!drag) return;
-    e.preventDefault();
-    const { x, y } = getXY(e);
-    drag.curX = x; drag.curY = y;
-
-    const p  = PIECES[drag.pieceIdx];
-    const to = computeTargetOffset(p, x, y, drag.grabCell, drag.grabInCellX, drag.grabInCellY);
-    const snap = findSnap(p, to, drag.pieceIdx);
-
-    drag.snapOffset = snap || drag.startOffset;
-    drag.validSnap  = !!snap;
-    render();
-}
-
-function onUp(e) {
-    if (!drag) return;
-    e.preventDefault();
-
-    const { cw: CW, ch: CH, gap: G } = GRID;
-    const originX = drag.curX - drag.grabInCellX - drag.grabCell[1] * (CW + G);
-    const originY = drag.curY - drag.grabInCellY - drag.grabCell[0] * (CH + G);
-
-    const piece = PIECES[drag.pieceIdx];
-    if (isOutsideGrid(drag.curX, drag.curY) && canExit(piece, drag.snapOffset, drag.curX, drag.curY)) {
-        // Piece is touching the wall in the exit direction → animate out
-        startRemoveAnim(piece, drag.snapOffset, getExitDir(drag.curX, drag.curY));
-        PIECES.splice(drag.pieceIdx, 1);
-    } else {
-        piece.offset = drag.snapOffset;
+    // --- строим клетки ---
+    const board = document.getElementById('board');
+    for (let i = 0; i < COLS * ROWS; i++) {
+      board.appendChild(Object.assign(document.createElement('div'), { className: 'cell' }));
     }
 
-    drag = null;
-    pCanvas.classList.remove('dragging');
-    render();
-}
+    const figure = document.getElementById('figure');
+    const scene  = document.getElementById('scene');
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function render() {
-    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+    figure.style.width  = FIG + 'px';
+    figure.style.height = FIG + 'px';
 
-    // ── Removing pieces: slide → squash → bounce + fade ───────────────────────
-    const { cw: W, ch: H, gap: G } = GRID;
-    removing.forEach(item => {
-        const { piece, snapOffset, dir, t } = item;
-        const rs = piece.cells.map(([r]) => r), cs = piece.cells.map(([, c]) => c);
-        const minR = Math.min(...rs), maxR = Math.max(...rs);
-        const minC = Math.min(...cs), maxC = Math.max(...cs);
+    // --- позиционирование ---
+    function cellPos(col, row) {
+      return {
+        x: PADDING + col * (CELL + GAP),
+        y: PADDING + row * (CELL + GAP)
+      };
+    }
 
-        // Piece pixel origin at snap position
-        const px0 = GRID.ox + snapOffset.col * (W + G);
-        const py0 = GRID.oy + snapOffset.row * (H + G);
+    function snapToCell(col, row) {
+      col = Math.max(0, Math.min(COLS - 1, col));
+      row = Math.max(0, Math.min(ROWS - 1, row));
+      const p = cellPos(col, row);
+      figure.style.left = (p.x - (FIG - CELL) / 2) + 'px';
+      figure.style.top  = (p.y - (FIG - CELL) / 2) + 'px';
+      figure._col = col;
+      figure._row = row;
+    }
 
-        // Local center of piece shape (relative to piece origin)
-        const lcx = minC * (W + G) + ((maxC - minC) * (W + G) + W) / 2;
-        const lcy = minR * (H + G) + ((maxR - minR) * (H + G) + H) / 2;
+    snapToCell(1, 1);
 
-        // How far to slide into the wall
-        const slideAmt = (dir === 'top' || dir === 'bottom') ? H * 1.1 : W * 1.1;
+    // --- drag ---
+    let dragging = false;
+    let grabX = 0, grabY = 0;
 
-        let tx = 0, ty = 0, sx = 1, sy = 1, alpha = 1;
-
-        if (t <= ANIM.slide) {
-            // Phase 1: slide toward wall with easeIn acceleration
-            const p = easeIn(t / ANIM.slide);
-            if (dir === 'top')    ty = -p * slideAmt;
-            if (dir === 'bottom') ty =  p * slideAmt;
-            if (dir === 'left')   tx = -p * slideAmt;
-            if (dir === 'right')  tx =  p * slideAmt;
-
-        } else if (t <= ANIM.slide + ANIM.squash) {
-            // Phase 2: squash flat against the wall
-            if (dir === 'top')    ty = -slideAmt;
-            if (dir === 'bottom') ty =  slideAmt;
-            if (dir === 'left')   tx = -slideAmt;
-            if (dir === 'right')  tx =  slideAmt;
-            const p = easeOut((t - ANIM.slide) / ANIM.squash);
-            const perp = 1 - p * 0.83;   // compress: 1 → 0.17
-            const par  = 1 + p * 0.60;   // expand:   1 → 1.60
-            if (dir === 'top' || dir === 'bottom') { sx = par; sy = perp; }
-            else                                    { sx = perp; sy = par; }
-
-        } else {
-            // Phase 3: bounce back then fade
-            const p = (t - ANIM.slide - ANIM.squash) / ANIM.bounce;
-            // Position: spring back (peaks at ~0.55 cells back, then eases to rest)
-            const bounce = Math.sin(p * Math.PI) * 0.55;  // arc: 0 → peak → 0
-            const offset = slideAmt * (1 - bounce);
-            if (dir === 'top')    ty = -offset;
-            if (dir === 'bottom') ty =  offset;
-            if (dir === 'left')   tx = -offset;
-            if (dir === 'right')  tx =  offset;
-            // Scale: recover from squash
-            const prog    = easeOut(p);
-            const perp    = 0.17 + prog * 0.83;
-            const par     = 1.60 - prog * 0.60;
-            if (dir === 'top' || dir === 'bottom') { sx = par; sy = perp; }
-            else                                    { sx = perp; sy = par; }
-            alpha = 1 - p;
-        }
-
-        pCtx.save();
-        pCtx.globalAlpha = Math.max(0, alpha);
-        pCtx.translate(px0 + tx, py0 + ty);
-        pCtx.translate(lcx, lcy);
-        pCtx.scale(sx, sy);
-        pCtx.translate(-lcx, -lcy);
-        drawPieceShape(pCtx, piece);
-        pCtx.restore();
+    figure.addEventListener('mousedown', (e) => {
+      dragging = true;
+      figure.classList.add('dragging');
+      const rect = figure.getBoundingClientRect();
+      grabX = e.clientX - rect.left;
+      grabY = e.clientY - rect.top;
+      e.preventDefault();
     });
 
-    // ── Shockwave rings ────────────────────────────────────────────────────────
-    shockwaves.forEach(s => {
-        pCtx.save();
-        pCtx.globalAlpha = s.life * 0.75;
-        pCtx.strokeStyle = s.color;
-        pCtx.lineWidth   = 3.5;
-        pCtx.beginPath();
-        pCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        pCtx.stroke();
-        pCtx.restore();
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const sr = scene.getBoundingClientRect();
+      figure.style.left = (e.clientX - sr.left - grabX) + 'px';
+      figure.style.top  = (e.clientY - sr.top  - grabY) + 'px';
     });
 
-    // ── Particles ──────────────────────────────────────────────────────────────
-    particles.forEach(p => {
-        pCtx.save();
-        pCtx.globalAlpha = p.life;
-        pCtx.fillStyle   = p.color;
-        pCtx.beginPath();
-        pCtx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
-        pCtx.fill();
-        pCtx.restore();
+    document.addEventListener('mouseup', (e) => {
+      if (!dragging) return;
+      dragging = false;
+      figure.classList.remove('dragging');
+
+      const sr = scene.getBoundingClientRect();
+      const cx = e.clientX - sr.left - grabX + FIG / 2;
+      const cy = e.clientY - sr.top  - grabY + FIG / 2;
+
+      const col = Math.round((cx - PADDING - CELL / 2) / (CELL + GAP));
+      const row = Math.round((cy - PADDING - CELL / 2) / (CELL + GAP));
+
+      snapToCell(col, row);
     });
-
-    // Static pieces
-    PIECES.forEach((p, i) => {
-        if (drag && drag.pieceIdx === i) return;
-        pCtx.save();
-        pCtx.translate(
-            GRID.ox + p.offset.col * (GRID.cw + GRID.gap),
-            GRID.oy + p.offset.row * (GRID.ch + GRID.gap)
-        );
-        drawPieceShape(pCtx, p);
-        pCtx.restore();
-    });
-
-    if (!drag) return;
-
-    const p = PIECES[drag.pieceIdx];
-
-    // Ghost at snap position
-    pCtx.save();
-    pCtx.globalAlpha = drag.validSnap ? 0.4 : 0.15;
-    pCtx.translate(
-        GRID.ox + drag.snapOffset.col * (GRID.cw + GRID.gap),
-        GRID.oy + drag.snapOffset.row * (GRID.ch + GRID.gap)
-    );
-    drawPieceShape(pCtx, p);
-    pCtx.restore();
-    pCtx.globalAlpha = 1;
-
-    // Floating piece under cursor (follows mouse exactly)
-    const originX = drag.curX - drag.grabInCellX - drag.grabCell[1] * (W + G);
-    const originY = drag.curY - drag.grabInCellY - drag.grabCell[0] * (H + G);
-
-    pCtx.save();
-    pCtx.shadowColor   = 'rgba(0,0,0,0.45)';
-    pCtx.shadowBlur    = 24;
-    pCtx.shadowOffsetY = 12;
-    pCtx.globalAlpha   = 0.92;
-    pCtx.translate(originX, originY);
-    drawPieceShape(pCtx, p);
-    pCtx.restore();
-    pCtx.globalAlpha = 1;
-}
-
-// ── Draw one piece shape (called with ctx already translated to piece origin) ─
-function drawPieceShape(ctx, piece) {
-    const { cw: W, ch: H, gap: G, r: R } = GRID;
-    const hs = G / 2;
-    const { cells, colorTop, colorBot } = piece;
-
-    // One gradient spanning the full piece height (no mid-piece stripe)
-    const rowVals = cells.map(([r]) => r);
-    const gradY1  = Math.min(...rowVals) * (H + G);
-    const gradY2  = Math.max(...rowVals) * (H + G) + H;
-
-    cells.forEach(([row, col]) => {
-        const nb = (r, c) => cells.some(([a, b]) => a === r && b === c);
-        const hR = nb(row, col+1), hL = nb(row, col-1);
-        const hD = nb(row+1, col), hU = nb(row-1, col);
-
-        const x1 = col*(W+G) - (hL ? hs : 0);
-        const y1 = row*(H+G) - (hU ? hs : 0);
-        const x2 = col*(W+G) + W + (hR ? hs : 0);
-        const y2 = row*(H+G) + H + (hD ? hs : 0);
-        const w  = x2 - x1, h = y2 - y1;
-
-        const grad = ctx.createLinearGradient(0, gradY1, 0, gradY2);
-        grad.addColorStop(0, colorTop);
-        grad.addColorStop(1, colorBot);
-        ctx.fillStyle = grad;
-
-        rrect(ctx, x1, y1, w, h,
-            (!hU && !hL) ? R : 0,
-            (!hU && !hR) ? R : 0,
-            (!hD && !hR) ? R : 0,
-            (!hD && !hL) ? R : 0
-        );
-        ctx.fill();
-    });
-}
-
-function rrect(ctx, x, y, w, h, tl, tr, br, bl) {
-    ctx.beginPath();
-    ctx.moveTo(x + tl, y);
-    ctx.lineTo(x + w - tr, y);
-    tr ? ctx.arcTo(x+w, y,   x+w, y+tr,  tr) : ctx.lineTo(x+w, y);
-    ctx.lineTo(x+w, y+h-br);
-    br ? ctx.arcTo(x+w, y+h, x+w-br, y+h, br) : ctx.lineTo(x+w, y+h);
-    ctx.lineTo(x+bl, y+h);
-    bl ? ctx.arcTo(x, y+h,   x, y+h-bl, bl)  : ctx.lineTo(x, y+h);
-    ctx.lineTo(x, y+tl);
-    tl ? ctx.arcTo(x, y,     x+tl, y,   tl)  : ctx.lineTo(x, y);
-    ctx.closePath();
-}
-</script>
+  </script>
 </body>
 </html>
