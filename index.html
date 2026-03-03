@@ -61,6 +61,30 @@
 
     .wall.green { background: #4caf50; }
     .wall.cyan  { background: #29b6f6; }
+    .wall { transition: transform 0.12s, filter 0.12s, box-shadow 0.12s; }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-7px); }
+      40%     { transform: translateX(7px); }
+      65%     { transform: translateX(-4px); }
+      85%     { transform: translateX(4px); }
+    }
+    .figure.shake { animation: shake 0.35s ease; }
+
+    @keyframes jelly {
+      0%   { transform: scale(1,    1   ); }
+      18%  { transform: scale(1.13, 0.87); }
+      38%  { transform: scale(0.9,  1.11); }
+      56%  { transform: scale(1.07, 0.94); }
+      72%  { transform: scale(0.97, 1.03); }
+      86%  { transform: scale(1.02, 0.99); }
+      100% { transform: scale(1,    1   ); }
+    }
+    .figure.jelly {
+      animation: jelly 0.48s cubic-bezier(.36,.07,.19,.97);
+      transform-origin: center bottom;
+    }
 
     /* ── фигуры ───────────────────────────────────────────────────────────── */
     .figure {
@@ -132,22 +156,32 @@
     scene.style.left = BORDER + 'px';
     scene.style.top  = BORDER + 'px';
 
+    // соответствие цвета фигуры → цвет стенки
+    const COLOR_KEY = {
+      '#4caf50': 'green', '#388e3c': 'green', '#43a047': 'green',
+      '#29b6f6': 'cyan',  '#00bcd4': 'cyan',  '#26c6da': 'cyan',
+    };
+
     // ── строим стенки ───────────────────────────────────────────────────────
-    function makeWall(color, dir) {
+    const walls = [];
+    function makeWall(colorKey, dir) {
       const el = document.createElement('div');
-      el.className = `wall ${color}`;
+      el.className = `wall ${colorKey}`;
       el.textContent = { top: '▲', bottom: '▼', right: '▶', left: '◀' }[dir];
+      el._colorKey = colorKey;
+      el._dir      = dir;
       const horiz = dir === 'top' || dir === 'bottom';
       const w = horiz ? WALL_LONG  : WALL_SHORT;
       const h = horiz ? WALL_SHORT : WALL_LONG;
       el.style.width  = w + 'px';
       el.style.height = h + 'px';
-      const offset = (BORDER - WALL_SHORT) / 2; // центр в полосе рамки
+      const offset = (BORDER - WALL_SHORT) / 2;
       if (dir === 'top')    { el.style.left = (BORDER + (BOARD_W - WALL_LONG) / 2) + 'px'; el.style.top    = offset + 'px'; }
       if (dir === 'bottom') { el.style.left = (BORDER + (BOARD_W - WALL_LONG) / 2) + 'px'; el.style.bottom = offset + 'px'; }
       if (dir === 'right')  { el.style.top  = (BORDER + (BOARD_H - WALL_LONG) / 2) + 'px'; el.style.right  = offset + 'px'; }
       if (dir === 'left')   { el.style.top  = (BORDER + (BOARD_H - WALL_LONG) / 2) + 'px'; el.style.left   = offset + 'px'; }
       frame.appendChild(el);
+      walls.push(el);
     }
 
     makeWall('green', 'top');
@@ -300,6 +334,11 @@
 
     function hideGhost() { ghostEl.style.display = 'none'; }
 
+    function addJelly(fig) {
+      fig.classList.add('jelly');
+      fig.addEventListener('animationend', () => fig.classList.remove('jelly'), { once: true });
+    }
+
     function createFigure(shapeName, color, startCol, startRow) {
       const cells = SHAPES[shapeName];
       const maxC  = Math.max(...cells.map(c => c[0]));
@@ -311,10 +350,11 @@
       fig.className    = 'figure';
       fig.style.width  = W + 'px';
       fig.style.height = H + 'px';
-      fig._cells = cells;
-      fig._maxC  = maxC;
-      fig._maxR  = maxR;
-      fig._color = color;
+      fig._cells    = cells;
+      fig._maxC     = maxC;
+      fig._maxR     = maxR;
+      fig._color    = color;
+      fig._colorKey = COLOR_KEY[color] || null;
 
       const canvas = document.createElement('canvas');
       drawFigureCanvas(canvas, cells, color, W, H);
@@ -340,16 +380,58 @@
         e.preventDefault();
         e.stopPropagation();
 
+        const figW = fig._maxC * (CELL + GAP) + CELL;
+        const figH = fig._maxR * (CELL + GAP) + CELL;
+
+        // стенка срабатывает только когда мышь выходит за пределы доски
+        function hoveredWall(rawX, rawY) {
+          const beyond = {
+            left:   rawX < 0,
+            right:  rawX > BOARD_W - figW,
+            top:    rawY < 0,
+            bottom: rawY > BOARD_H - figH,
+          };
+          return walls.find(w => beyond[w._dir]) || null;
+        }
+
+        // подсвечиваем стенки во время перетаскивания
+        function updateWallHighlight(rawX, rawY) {
+          const w = hoveredWall(rawX, rawY);
+          walls.forEach(wall => {
+            if (wall === w) {
+              const match = fig._colorKey && fig._colorKey === wall._colorKey;
+              wall.style.transform  = 'scale(1.1)';
+              wall.style.filter     = match
+                ? 'brightness(1.5) drop-shadow(0 0 14px rgba(255,255,255,0.9))'
+                : 'brightness(0.55) saturate(0.3)';
+            } else {
+              wall.style.transform = '';
+              wall.style.filter    = '';
+            }
+          });
+          return w;
+        }
+
         const onMove = (e) => {
-          const sr = scene.getBoundingClientRect();
-          fig.style.left = (e.clientX - sr.left - grabX) + 'px';
-          fig.style.top  = (e.clientY - sr.top  - grabY) + 'px';
-          // призрак на сетке
-          const col = Math.round((e.clientX - sr.left - grabX - PAD) / (CELL + GAP));
-          const row = Math.round((e.clientY - sr.top  - grabY - PAD) / (CELL + GAP));
-          const clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
-          const clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
-          showGhost(fig, clampedCol, clampedRow, canPlace(fig, col, row));
+          const sr   = scene.getBoundingClientRect();
+          const rawX = e.clientX - sr.left - grabX;
+          const rawY = e.clientY - sr.top  - grabY;
+          // зажимаем позицию в пределах сетки
+          const x = Math.max(0, Math.min(BOARD_W - figW, rawX));
+          const y = Math.max(0, Math.min(BOARD_H - figH, rawY));
+          fig.style.left = x + 'px';
+          fig.style.top  = y + 'px';
+
+          const overWall = updateWallHighlight(rawX, rawY);
+          if (overWall) {
+            hideGhost();
+          } else {
+            const col = Math.round((x - PAD) / (CELL + GAP));
+            const row = Math.round((y - PAD) / (CELL + GAP));
+            const clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
+            const clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
+            showGhost(fig, clampedCol, clampedRow, canPlace(fig, col, row));
+          }
         };
 
         const onUp = (e) => {
@@ -357,14 +439,52 @@
           fig.style.filter = '';
           fig.style.zIndex = 10;
           hideGhost();
+          walls.forEach(w => { w.style.transform = ''; w.style.filter = ''; });
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup',   onUp);
-          const sr  = scene.getBoundingClientRect();
-          const col = Math.round((e.clientX - sr.left - grabX - PAD) / (CELL + GAP));
-          const row = Math.round((e.clientY - sr.top  - grabY - PAD) / (CELL + GAP));
-          if (canPlace(fig, col, row)) placeFigure(fig, col, row, false);
-          else                         placeFigure(fig, prevCol, prevRow, true);
-          occupyCells(fig, fig._col, fig._row);
+
+          const sr2  = scene.getBoundingClientRect();
+          const rawX = e.clientX - sr2.left - grabX;
+          const rawY = e.clientY - sr2.top  - grabY;
+          const wall = hoveredWall(rawX, rawY);
+          if (wall) {
+            const match = fig._colorKey && fig._colorKey === wall._colorKey;
+            if (match) {
+              // ── совпадение: вспышка и удаление ──────────────────────────
+              wall.style.transition = 'transform 0.15s, filter 0.15s';
+              wall.style.transform  = 'scale(1.18)';
+              wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px white)';
+              setTimeout(() => { wall.style.transform = ''; wall.style.filter = ''; }, 300);
+
+              fig.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.15s';
+              fig.style.filter     = 'brightness(3) drop-shadow(0 0 24px white)';
+              fig.style.transform  = 'scale(1.25)';
+              setTimeout(() => { fig.style.opacity = '0'; }, 150);
+              setTimeout(() => fig.remove(), 380);
+              // клетки уже свободны (freeCells вызван при mousedown)
+            } else {
+              // ── несовпадение: дрожание и возврат ────────────────────────
+              placeFigure(fig, prevCol, prevRow, true);
+              occupyCells(fig, fig._col, fig._row);
+              fig.classList.add('shake');
+              fig.addEventListener('animationend', () => fig.classList.remove('shake'), { once: true });
+              setTimeout(() => addJelly(fig), 220);
+            }
+          } else {
+            // позиция фигуры уже зажата, берём из style
+            const x   = parseFloat(fig.style.left);
+            const y   = parseFloat(fig.style.top);
+            const col = Math.round((x - PAD) / (CELL + GAP));
+            const row = Math.round((y - PAD) / (CELL + GAP));
+            if (canPlace(fig, col, row)) {
+              placeFigure(fig, col, row, false);
+              addJelly(fig);
+            } else {
+              placeFigure(fig, prevCol, prevRow, true);
+              setTimeout(() => addJelly(fig), 220);
+            }
+            occupyCells(fig, fig._col, fig._row);
+          }
         };
 
         document.addEventListener('mousemove', onMove);
