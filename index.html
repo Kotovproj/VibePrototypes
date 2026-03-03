@@ -340,6 +340,88 @@
 
     function hideGhost() { ghostEl.style.display = 'none'; }
 
+    // ── система частиц ───────────────────────────────────────────────────────
+    const pCanvas = document.createElement('canvas');
+    pCanvas.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;z-index:9999;';
+    document.body.appendChild(pCanvas);
+    const pctx = pCanvas.getContext('2d');
+    let pDPR = 1;
+
+    function resizePCanvas() {
+      pDPR = window.devicePixelRatio || 1;
+      pCanvas.width  = window.innerWidth  * pDPR;
+      pCanvas.height = window.innerHeight * pDPR;
+      pCanvas.style.width  = window.innerWidth  + 'px';
+      pCanvas.style.height = window.innerHeight + 'px';
+    }
+    resizePCanvas();
+    window.addEventListener('resize', resizePCanvas);
+
+    let parts   = [];
+    let pRafId  = null;
+
+    function lightenHex(hex, amt) {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgb(${Math.min(255,r+amt)},${Math.min(255,g+amt)},${Math.min(255,b+amt)})`;
+    }
+
+    function spawnParticles(cx, cy, color) {
+      const COUNT  = 52;
+      const light  = lightenHex(color, 80);
+      const colors = [color, color, color, light, light, '#ffffff'];
+      for (let i = 0; i < COUNT; i++) {
+        const angle = (Math.PI * 2 * i / COUNT) + (Math.random() - 0.5) * 0.9;
+        const spd   = 1.8 + Math.random() * 8;
+        parts.push({
+          x:     cx + (Math.random() - 0.5) * 24,
+          y:     cy + (Math.random() - 0.5) * 24,
+          vx:    Math.cos(angle) * spd,
+          vy:    Math.sin(angle) * spd - 2,
+          size:  3.5 + Math.random() * 7.5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          op:    0.92 + Math.random() * 0.08,
+          rot:   Math.random() * Math.PI * 2,
+          rotV:  (Math.random() - 0.5) * 0.28,
+          round: Math.random() > 0.42,
+        });
+      }
+      if (!pRafId) tickParticles();
+    }
+
+    function tickParticles() {
+      pctx.setTransform(pDPR, 0, 0, pDPR, 0, 0);
+      pctx.clearRect(0, 0, pCanvas.width / pDPR, pCanvas.height / pDPR);
+      parts = parts.filter(p => p.op > 0.015);
+      parts.forEach(p => {
+        p.x  += p.vx;
+        p.y  += p.vy;
+        p.vy += 0.21;
+        p.vx *= 0.979;
+        p.op -= 0.019;
+        p.rot += p.rotV;
+        pctx.save();
+        pctx.globalAlpha = Math.max(0, p.op);
+        pctx.translate(p.x, p.y);
+        pctx.rotate(p.rot);
+        pctx.fillStyle = p.color;
+        if (p.round) {
+          pctx.beginPath();
+          pctx.arc(0, 0, p.size * 0.5, 0, Math.PI * 2);
+          pctx.fill();
+        } else {
+          pctx.fillRect(-p.size * 0.5, -p.size * 0.38, p.size, p.size * 0.76);
+        }
+        pctx.restore();
+      });
+      if (parts.length) {
+        pRafId = requestAnimationFrame(tickParticles);
+      } else {
+        pRafId = null;
+      }
+    }
+
     function addJelly(fig) {
       fig.classList.add('jelly');
       fig.addEventListener('animationend', () => fig.classList.remove('jelly'), { once: true });
@@ -489,17 +571,21 @@
           if (wall) {
             const match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
             if (match) {
-              // ── совпадение: вспышка и удаление ──────────────────────────
+              // ── совпадение: вспышка + частицы + удаление ────────────────
               wall.style.transition = 'transform 0.15s, filter 0.15s';
               wall.style.transform  = 'scale(1.18)';
               wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px white)';
               setTimeout(() => { wall.style.transform = ''; wall.style.filter = ''; }, 300);
 
-              fig.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.15s';
-              fig.style.filter     = 'brightness(3) drop-shadow(0 0 24px white)';
-              fig.style.transform  = 'scale(1.25)';
-              setTimeout(() => { fig.style.opacity = '0'; }, 150);
-              setTimeout(() => fig.remove(), 380);
+              // центр фигуры в координатах вьюпорта → для партиклов
+              const fr = fig.getBoundingClientRect();
+              spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._color);
+
+              fig.style.transition = 'transform 0.15s ease-out, opacity 0.15s ease-in, filter 0.1s';
+              fig.style.filter     = `brightness(4) drop-shadow(0 0 28px ${fig._color})`;
+              fig.style.transform  = 'scale(1.15)';
+              fig.style.opacity    = '0';
+              setTimeout(() => fig.remove(), 180);
               // клетки уже свободны (freeCells вызван при mousedown)
             } else {
               // ── несовпадение: дрожание и возврат ────────────────────────
