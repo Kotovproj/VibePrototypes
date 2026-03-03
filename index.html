@@ -369,6 +369,8 @@
     function attachDrag(fig) {
       fig.addEventListener('mousedown', (e) => {
         const prevCol = fig._col, prevRow = fig._row;
+        let lastValidCol = prevCol, lastValidRow = prevRow;
+
         fig.classList.add('dragging');
         fig.style.zIndex = 20;
         // свечение своим цветом
@@ -416,22 +418,35 @@
           const sr   = scene.getBoundingClientRect();
           const rawX = e.clientX - sr.left - grabX;
           const rawY = e.clientY - sr.top  - grabY;
-          // зажимаем позицию в пределах сетки
-          const x = Math.max(0, Math.min(BOARD_W - figW, rawX));
-          const y = Math.max(0, Math.min(BOARD_H - figH, rawY));
-          fig.style.left = x + 'px';
-          fig.style.top  = y + 'px';
 
           const overWall = updateWallHighlight(rawX, rawY);
           if (overWall) {
+            // фигура остаётся на последней валидной позиции
+            const p = cellPos(lastValidCol, lastValidRow);
+            fig.style.left = p.x + 'px';
+            fig.style.top  = p.y + 'px';
             hideGhost();
-          } else {
-            const col = Math.round((x - PAD) / (CELL + GAP));
-            const row = Math.round((y - PAD) / (CELL + GAP));
-            const clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
-            const clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
-            showGhost(fig, clampedCol, clampedRow, canPlace(fig, col, row));
+            return;
           }
+
+          // вычисляем целевую клетку
+          const x = Math.max(0, Math.min(BOARD_W - figW, rawX));
+          const y = Math.max(0, Math.min(BOARD_H - figH, rawY));
+          const col = Math.round((x - PAD) / (CELL + GAP));
+          const row = Math.round((y - PAD) / (CELL + GAP));
+          const clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
+          const clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
+
+          // двигаем фигуру только если клетки свободны
+          if (canPlace(fig, clampedCol, clampedRow)) {
+            lastValidCol = clampedCol;
+            lastValidRow = clampedRow;
+          }
+
+          const p = cellPos(lastValidCol, lastValidRow);
+          fig.style.left = p.x + 'px';
+          fig.style.top  = p.y + 'px';
+          showGhost(fig, lastValidCol, lastValidRow, true);
         };
 
         const onUp = (e) => {
@@ -471,18 +486,9 @@
               setTimeout(() => addJelly(fig), 220);
             }
           } else {
-            // позиция фигуры уже зажата, берём из style
-            const x   = parseFloat(fig.style.left);
-            const y   = parseFloat(fig.style.top);
-            const col = Math.round((x - PAD) / (CELL + GAP));
-            const row = Math.round((y - PAD) / (CELL + GAP));
-            if (canPlace(fig, col, row)) {
-              placeFigure(fig, col, row, false);
-              addJelly(fig);
-            } else {
-              placeFigure(fig, prevCol, prevRow, true);
-              setTimeout(() => addJelly(fig), 220);
-            }
+            // дропаем на последнюю валидную позицию (всегда свободна)
+            placeFigure(fig, lastValidCol, lastValidRow, false);
+            addJelly(fig);
             occupyCells(fig, fig._col, fig._row);
           }
         };
