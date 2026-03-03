@@ -13,47 +13,78 @@
             user-select: none;
         }
         #bg { position: fixed; top: 0; left: 0; z-index: 0; }
-        .scene { position: relative; z-index: 1; }
-        .board-wrap { position: relative; display: inline-block; }
-        .board-sprite { width: 480px; height: auto; display: block; border-radius: 13%; }
+        .scene { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+
+        /* ── Board frame: 3×3 CSS grid ─────────────────────────────── */
+        .board-frame {
+            display: grid;
+            grid-template-columns: 56px 480px 56px;
+            grid-template-rows: 56px 480px 56px;
+        }
+
+        /* Corners */
+        .corner { width: 56px; height: 56px; display: block; }
+        .corner-tl { transform: rotate(0deg); }
+        .corner-tr { transform: rotate(90deg); }
+        .corner-br { transform: rotate(180deg); }
+        .corner-bl { transform: rotate(270deg); }
+
+        /* Top / bottom green walls */
+        .wall-top, .wall-bottom { width: 480px; height: 56px; display: block; }
+        .wall-bottom { transform: scaleY(-1); }
+
+        /* Left / right gray walls */
+        .wall-left, .wall-right { width: 56px; height: 480px; display: block; }
+        .wall-right { transform: scaleX(-1); }
+
+        /* ── Board center ────────────────────────────────────────────── */
+        .board-wrap { position: relative; width: 480px; height: 480px; }
+        .board-sprite { width: 480px; height: 480px; display: block; }
         #pieces {
             position: absolute; top: 0; left: 0;
             cursor: grab;
-            touch-action: none; /* prevent scroll on touch */
+            touch-action: none;
         }
         #pieces.dragging { cursor: grabbing; }
 
+        /* ── Restart button (green_wall sprite) ─────────────────────── */
         #restart {
-            margin-top: 16px;
-            display: block;
+            margin-top: 12px;
             width: 480px;
-            padding: 12px 0;
-            background: linear-gradient(180deg, #6ee050 0%, #38a828 100%);
+            height: 56px;
+            background: url('green_wall.png') no-repeat center / 100% 100%;
             border: none;
-            border-radius: 14px;
-            color: #fff;
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 1px;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            transition: transform 0.1s, box-shadow 0.1s;
+            display: block;
+            transition: transform 0.1s, filter 0.1s;
         }
-        #restart:active {
-            transform: scale(0.97);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        }
+        #restart:active { transform: scale(0.97); filter: brightness(0.9); }
     </style>
 </head>
 <body>
 
 <canvas id="bg"></canvas>
 <div class="scene">
-    <div class="board-wrap">
-        <img class="board-sprite" id="sprite" src="image.png" alt="board">
-        <canvas id="pieces"></canvas>
+    <div class="board-frame">
+        <!-- Row 1: corners + top wall -->
+        <img class="corner corner-tl" src="gray wall corner.png" alt="">
+        <img class="wall-top"         src="green_wall.png"       alt="">
+        <img class="corner corner-tr" src="gray wall corner.png" alt="">
+
+        <!-- Row 2: side walls + board -->
+        <img class="wall-left"        src="gray wall rectange.png" alt="">
+        <div class="board-wrap">
+            <img class="board-sprite" id="sprite" src="grid.png" alt="board">
+            <canvas id="pieces"></canvas>
+        </div>
+        <img class="wall-right"       src="gray wall rectange.png" alt="">
+
+        <!-- Row 3: corners + bottom wall -->
+        <img class="corner corner-bl" src="gray wall corner.png" alt="">
+        <img class="wall-bottom"      src="green_wall.png"       alt="">
+        <img class="corner corner-br" src="gray wall corner.png" alt="">
     </div>
-    <button id="restart">↺ Restart</button>
+    <button id="restart"></button>
 </div>
 
 <script>
