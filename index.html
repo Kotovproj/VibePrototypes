@@ -59,8 +59,9 @@
       user-select: none;
     }
 
-    .wall.green { background: #4caf50; }
-    .wall.cyan  { background: #29b6f6; }
+    .wall.green  { background: #4caf50; }
+    .wall.cyan   { background: #29b6f6; }
+    .wall.purple { background: #c84bdf; }
     .wall { transition: transform 0.12s, filter 0.12s, box-shadow 0.12s; }
 
     @keyframes shake {
@@ -141,8 +142,9 @@
     // толщина рамки
     const BORDER = 54;
 
-    // параметры стенки (2×1 клетки)
-    const WALL_LONG  = 2 * CELL + GAP;  // 136 — длинная сторона
+    // параметры стенки (3×1 клетки)
+    const WALL_CELLS = 3;
+    const WALL_LONG  = WALL_CELLS * CELL + (WALL_CELLS - 1) * GAP;  // 208
     const WALL_SHORT = 46;              // короткая сторона
 
     // ── позиционируем рамку и сцену ─────────────────────────────────────────
@@ -158,13 +160,14 @@
 
     // соответствие цвета фигуры → цвет стенки
     const COLOR_KEY = {
-      '#4caf50': 'green', '#388e3c': 'green', '#43a047': 'green',
-      '#29b6f6': 'cyan',  '#00bcd4': 'cyan',  '#26c6da': 'cyan',
+      '#4caf50': 'green',  '#388e3c': 'green',  '#43a047': 'green',
+      '#29b6f6': 'cyan',   '#00bcd4': 'cyan',   '#26c6da': 'cyan',
+      '#c84bdf': 'purple', '#ab47bc': 'purple', '#e040fb': 'purple',
     };
 
     // ── строим стенки ───────────────────────────────────────────────────────
     const walls = [];
-    function makeWall(colorKey, dir) {
+    function makeWall(colorKey, dir, col) {
       const el = document.createElement('div');
       el.className = `wall ${colorKey}`;
       el.textContent = { top: '▲', bottom: '▼', right: '▶', left: '◀' }[dir];
@@ -176,17 +179,19 @@
       el.style.width  = w + 'px';
       el.style.height = h + 'px';
       const offset = (BORDER - WALL_SHORT) / 2;
-      if (dir === 'top')    { el.style.left = (BORDER + (BOARD_W - WALL_LONG) / 2) + 'px'; el.style.top    = offset + 'px'; }
-      if (dir === 'bottom') { el.style.left = (BORDER + (BOARD_W - WALL_LONG) / 2) + 'px'; el.style.bottom = offset + 'px'; }
-      if (dir === 'right')  { el.style.top  = (BORDER + (BOARD_H - WALL_LONG) / 2) + 'px'; el.style.right  = offset + 'px'; }
-      if (dir === 'left')   { el.style.top  = (BORDER + (BOARD_H - WALL_LONG) / 2) + 'px'; el.style.left   = offset + 'px'; }
+      const wallCol  = col !== undefined ? col : Math.floor((COLS - WALL_CELLS) / 2);
+      const wallRow  = Math.floor((ROWS - WALL_CELLS) / 2);
+      const wallLeft = BORDER + PAD + wallCol * (CELL + GAP);
+      if (dir === 'top')    { el.style.left = wallLeft + 'px'; el.style.top    = offset + 'px'; el._startCell = wallCol; }
+      if (dir === 'bottom') { el.style.left = wallLeft + 'px'; el.style.bottom = offset + 'px'; el._startCell = wallCol; }
+      if (dir === 'right')  { el.style.top  = (BORDER + PAD + 3 * (CELL + GAP)) + 'px'; el.style.right  = offset + 'px'; el._startCell = 3; }
+      if (dir === 'left')   { el.style.top  = (BORDER + PAD + wallRow * (CELL + GAP)) + 'px'; el.style.left   = offset + 'px'; el._startCell = wallRow; }
       frame.appendChild(el);
       walls.push(el);
     }
 
-    makeWall('green', 'top');
-    makeWall('green', 'bottom');
-    makeWall('cyan',  'right');
+    makeWall('cyan',   'top');
+    makeWall('purple', 'bottom', 0);
 
     // ── доска ────────────────────────────────────────────────────────────────
     const board = document.getElementById('board');
@@ -205,6 +210,7 @@
       '1x3': [[0,0],[0,1],[0,2]],
       '1x4': [[0,0],[0,1],[0,2],[0,3]],
       '2x2': [[0,0],[1,0],[0,1],[1,1]],
+      '3x4': [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3]],
       'L':   [[0,0],[0,1],[0,2],[1,2]],
       'J':   [[1,0],[1,1],[0,2],[1,2]],
       'T':   [[0,0],[1,0],[2,0],[1,1]],
@@ -396,12 +402,30 @@
           return walls.find(w => beyond[w._dir]) || null;
         }
 
+        // фигура влезает в стенку, если её размер по нужной оси ≤ WALL_CELLS
+        function fitsThroughWall(wall) {
+          const horiz = wall._dir === 'top' || wall._dir === 'bottom';
+          return horiz ? fig._maxC + 1 <= WALL_CELLS : fig._maxR + 1 <= WALL_CELLS;
+        }
+
+        // фигура стоит точно в пролёте стенки (ни одна клетка не вылезает за края)
+        function alignedWithWall(wall) {
+          const horiz = wall._dir === 'top' || wall._dir === 'bottom';
+          if (horiz) {
+            return lastValidCol >= wall._startCell &&
+                   lastValidCol + fig._maxC <= wall._startCell + WALL_CELLS - 1;
+          } else {
+            return lastValidRow >= wall._startCell &&
+                   lastValidRow + fig._maxR <= wall._startCell + WALL_CELLS - 1;
+          }
+        }
+
         // подсвечиваем стенки во время перетаскивания
         function updateWallHighlight(rawX, rawY) {
           const w = hoveredWall(rawX, rawY);
           walls.forEach(wall => {
             if (wall === w) {
-              const match = fig._colorKey && fig._colorKey === wall._colorKey;
+              const match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
               wall.style.transform  = 'scale(1.1)';
               wall.style.filter     = match
                 ? 'brightness(1.5) drop-shadow(0 0 14px rgba(255,255,255,0.9))'
@@ -463,7 +487,7 @@
           const rawY = e.clientY - sr2.top  - grabY;
           const wall = hoveredWall(rawX, rawY);
           if (wall) {
-            const match = fig._colorKey && fig._colorKey === wall._colorKey;
+            const match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
             if (match) {
               // ── совпадение: вспышка и удаление ──────────────────────────
               wall.style.transition = 'transform 0.15s, filter 0.15s';
@@ -499,13 +523,8 @@
     }
 
     // ── уровень ──────────────────────────────────────────────────────────────
-    createFigure('2x1',    '#29b6f6', 2, 0);
-    createFigure('1x3',    '#1a237e', 0, 1);
-    createFigure('1x2',    '#ef6c00', 5, 1);
-    createFigure('fat_T',  '#fdd835', 1, 2);
-    createFigure('2x1',    '#388e3c', 3, 2);
-    createFigure('1x2',    '#388e3c', 0, 4);
-    createFigure('T',      '#00bcd4', 2, 5);
+    createFigure('3x4', '#c84bdf', 0, 2);
+    createFigure('3x4', '#29b6f6', 3, 1);
   </script>
 </body>
 </html>
