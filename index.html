@@ -124,6 +124,80 @@
       position: absolute;
       top: 0; left: 0;
     }
+
+    /* ── win screen ───────────────────────────────────────────────────────── */
+    #win-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 5, 20, 0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 52px;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    #win-screen.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10001;
+    }
+    #win-title {
+      font-family: 'Arial Black', Impact, sans-serif;
+      font-size: 92px;
+      font-weight: 900;
+      line-height: 0.88;
+      text-align: center;
+      text-transform: uppercase;
+      color: #ffd700;
+      -webkit-text-stroke: 7px #fff;
+      paint-order: stroke fill;
+      text-shadow: 0 8px 0 #b84d00, 0 14px 28px rgba(0,0,0,0.65);
+      transform: scale(0.6) translateY(-40px);
+      opacity: 0;
+      transition: transform 0.55s cubic-bezier(.34,1.56,.64,1), opacity 0.4s ease;
+    }
+    #win-screen.visible #win-title {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+      transition-delay: 0.12s;
+    }
+    #continue-btn {
+      font-family: 'Arial Black', Impact, sans-serif;
+      font-size: 30px;
+      font-weight: 900;
+      color: #fff;
+      background: linear-gradient(to bottom, #6dd6ff 0%, #1e9fe0 100%);
+      border: none;
+      border-radius: 40px;
+      padding: 18px 72px;
+      cursor: pointer;
+      box-shadow: 0 7px 0 #0d6aaa, 0 12px 32px rgba(0,0,0,0.45);
+      text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      letter-spacing: 1px;
+      transform: translateY(50px);
+      opacity: 0;
+      transition: transform 0.5s cubic-bezier(.34,1.56,.64,1), opacity 0.4s ease,
+                  filter 0.1s, box-shadow 0.1s;
+    }
+    #win-screen.visible #continue-btn {
+      transform: translateY(0);
+      opacity: 1;
+      transition-delay: 0.3s;
+    }
+    #continue-btn:hover { filter: brightness(1.12); }
+    #continue-btn:active {
+      transform: translateY(6px);
+      box-shadow: 0 1px 0 #0d6aaa;
+    }
   </style>
 </head>
 <body>
@@ -132,6 +206,13 @@
       <div id="board"></div>
     </div>
   </div>
+
+  <!-- Win screen -->
+  <div id="win-screen">
+    <h1 id="win-title">Level<br>Completed!</h1>
+    <button id="continue-btn">Continue</button>
+  </div>
+  <canvas id="confetti-canvas"></canvas>
 
   <script>
     const COLS = 6, ROWS = 7;
@@ -222,6 +303,7 @@
     };
 
     const occupied = new Map();
+    let figureCount = 0;
 
     function occupyCells(fig, col, row) {
       fig._cells.forEach(([dc, dr]) => occupied.set(`${col+dc},${row+dr}`, fig));
@@ -451,6 +533,7 @@
       fig.appendChild(canvas);
 
       scene.appendChild(fig);
+      figureCount++;
       placeFigure(fig, startCol, startRow, false);
       occupyCells(fig, fig._col, fig._row);
       attachDrag(fig);
@@ -587,7 +670,11 @@
               fig.style.filter     = `brightness(4) drop-shadow(0 0 28px ${fig._color})`;
               fig.style.transform  = 'scale(1.15)';
               fig.style.opacity    = '0';
-              setTimeout(() => fig.remove(), 180);
+              setTimeout(() => {
+                fig.remove();
+                figureCount--;
+                if (figureCount === 0) setTimeout(showWinScreen, 500);
+              }, 180);
               // клетки уже свободны (freeCells вызван при mousedown)
             } else {
               // ── несовпадение: дрожание и возврат ────────────────────────
@@ -609,6 +696,86 @@
         document.addEventListener('mouseup',   onUp);
       });
     }
+
+    // ── win screen ───────────────────────────────────────────────────────────
+    const winScreen  = document.getElementById('win-screen');
+    const confCanvas = document.getElementById('confetti-canvas');
+    const confCtx    = confCanvas.getContext('2d');
+    let confDPR = 1, confParts = [], confRafId = null, confSpawnTimer = null;
+
+    const CONF_COLORS = [
+      '#ffd700','#ff5252','#4caf50','#29b6f6',
+      '#e91e63','#ff9800','#00e5ff','#ab47bc','#ffffff',
+    ];
+
+    function resizeConfCanvas() {
+      confDPR = window.devicePixelRatio || 1;
+      confCanvas.width  = window.innerWidth  * confDPR;
+      confCanvas.height = window.innerHeight * confDPR;
+      confCanvas.style.width  = window.innerWidth  + 'px';
+      confCanvas.style.height = window.innerHeight + 'px';
+    }
+
+    function spawnConfBatch(n = 7) {
+      for (let i = 0; i < n; i++) {
+        const w = 9 + Math.random() * 14;
+        const h = 4 + Math.random() * 7;
+        confParts.push({
+          x:    Math.random() * window.innerWidth,
+          y:    -h,
+          vx:   (Math.random() - 0.5) * 4,
+          vy:   1.8 + Math.random() * 3.5,
+          w, h,
+          rot:  Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 0.22,
+          color: CONF_COLORS[Math.floor(Math.random() * CONF_COLORS.length)],
+        });
+      }
+    }
+
+    function tickConf() {
+      confCtx.setTransform(confDPR, 0, 0, confDPR, 0, 0);
+      confCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      confParts = confParts.filter(p => p.y < window.innerHeight + 20);
+      confParts.forEach(p => {
+        p.x  += p.vx;
+        p.y  += p.vy;
+        p.vy += 0.055;
+        p.vx += (Math.random() - 0.5) * 0.12;
+        p.rot += p.rotV;
+        confCtx.save();
+        confCtx.translate(p.x, p.y);
+        confCtx.rotate(p.rot);
+        confCtx.fillStyle = p.color;
+        confCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        confCtx.restore();
+      });
+      confRafId = requestAnimationFrame(tickConf);
+    }
+
+    function showWinScreen() {
+      resizeConfCanvas();
+      winScreen.classList.add('visible');
+      // первый залп
+      for (let i = 0; i < 18; i++) spawnConfBatch(8);
+      confSpawnTimer = setInterval(() => spawnConfBatch(7), 220);
+      if (!confRafId) tickConf();
+    }
+
+    function hideWinScreen() {
+      winScreen.classList.remove('visible');
+      clearInterval(confSpawnTimer);
+      confSpawnTimer = null;
+      cancelAnimationFrame(confRafId);
+      confRafId = null;
+      confParts = [];
+      confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    }
+
+    document.getElementById('continue-btn').addEventListener('click', hideWinScreen);
+    window.addEventListener('resize', () => {
+      if (winScreen.classList.contains('visible')) resizeConfCanvas();
+    });
 
     // ── уровень ──────────────────────────────────────────────────────────────
     createFigure('3x4', '#c84bdf', 0, 2);
