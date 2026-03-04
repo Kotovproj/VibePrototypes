@@ -133,6 +133,17 @@
       top: 0; left: 0;
     }
 
+    /* ── fade overlay ────────────────────────────────────────────────────── */
+    #fade-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 99999;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.35s ease;
+    }
+
     /* ── back button ─────────────────────────────────────────────────────── */
     #back-btn {
       position: fixed;
@@ -197,6 +208,9 @@
 
   <!-- Back button -->
   <button class="nav-btn" id="back-btn">✕</button>
+
+  <!-- Fade overlay -->
+  <div id="fade-overlay"></div>
 
   <script>
   // ── SHAPES & LEVELS ──────────────────────────────────────────────────────────
@@ -809,13 +823,36 @@
     scaleGame();
   }
 
-  function levelComplete() {
-    window.location = "uniwebview://complete";
-    setTimeout(() => {
-      currentLevel = (currentLevel + 1) % LEVELS.length;
+  // Fade system ───────────────────────────────────────────────────────────────
+  const fadeOverlay = document.getElementById('fade-overlay');
+
+  function fadeIn() {
+    fadeOverlay.style.transition = 'opacity 0.35s ease';
+    fadeOverlay.style.opacity = '0';
+  }
+
+  function fadeOut(cb) {
+    fadeOverlay.style.transition = 'opacity 0.35s ease';
+    fadeOverlay.style.opacity = '1';
+    setTimeout(cb, 350);
+  }
+
+  function transitionToLevel(idx) {
+    fadeOut(() => {
+      currentLevel = idx;
       loadLevel(currentLevel);
       updateNavLabel();
-    }, 2000);
+      fadeIn();
+    });
+  }
+
+  function setLevel(value) {
+    transitionToLevel(Math.max(0, Math.min(LEVELS.length - 1, parseInt(value) - 1)));
+  }
+
+  function levelComplete() {
+    window.location = "uniwebview://complete";
+    transitionToLevel((currentLevel + 1) % LEVELS.length);
   }
 
   document.getElementById('back-btn').addEventListener('click', () => {
@@ -828,15 +865,11 @@
   }
 
   document.getElementById('prev-btn').addEventListener('click', () => {
-    currentLevel = (currentLevel - 1 + LEVELS.length) % LEVELS.length;
-    loadLevel(currentLevel);
-    updateNavLabel();
+    transitionToLevel((currentLevel - 1 + LEVELS.length) % LEVELS.length);
   });
 
   document.getElementById('next-btn').addEventListener('click', () => {
-    currentLevel = (currentLevel + 1) % LEVELS.length;
-    loadLevel(currentLevel);
-    updateNavLabel();
+    transitionToLevel((currentLevel + 1) % LEVELS.length);
   });
 
   window.addEventListener('resize', () => {
@@ -846,6 +879,7 @@
 
   loadLevel(0);
   updateNavLabel();
+  fadeIn();
   </script>
 </body>
 </html>
