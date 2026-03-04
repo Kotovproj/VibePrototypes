@@ -70,6 +70,7 @@
     .wall.orange { background: #ff9800; }
     .wall.blue   { background: #1e88e5; }
     .wall.yellow { background: #ffc107; }
+    .wall.red    { background: #f44336; }
     .wall { transition: transform 0.12s, filter 0.12s, box-shadow 0.12s; }
 
     @keyframes shake {
@@ -209,6 +210,45 @@
       transform: translateY(6px);
       box-shadow: 0 1px 0 #0d6aaa;
     }
+
+    /* ── level nav ───────────────────────────────────────────────────────── */
+    #level-nav {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 9999;
+    }
+    #level-label {
+      font-family: 'Arial Black', Impact, sans-serif;
+      font-size: 15px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      min-width: 64px;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .nav-btn {
+      font-family: 'Arial Black', Impact, sans-serif;
+      font-size: 15px;
+      font-weight: 900;
+      color: #fff;
+      background: rgba(255,255,255,0.18);
+      border: none;
+      border-radius: 20px;
+      padding: 6px 16px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      transition: background 0.12s, transform 0.1s;
+      user-select: none;
+    }
+    .nav-btn:hover  { background: rgba(255,255,255,0.30); }
+    .nav-btn:active { transform: scale(0.93); }
   </style>
 </head>
 <body>
@@ -216,6 +256,13 @@
     <div id="scene">
       <div id="board"></div>
     </div>
+  </div>
+
+  <!-- Level nav -->
+  <div id="level-nav">
+    <button class="nav-btn" id="prev-btn">◀</button>
+    <span id="level-label">Level 1</span>
+    <button class="nav-btn" id="next-btn">▶</button>
   </div>
 
   <!-- Win screen -->
@@ -240,6 +287,8 @@
     '2x5':   [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4]],
     '3x3':   [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],
     '2x3':   [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]],
+    '2x4':   [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3]],
+    '3x2':   [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]],
     'L':     [[0,0],[0,1],[0,2],[1,2]],
     'J':     [[1,0],[1,1],[0,2],[1,2]],
     'T':     [[0,0],[1,0],[2,0],[1,1]],
@@ -309,6 +358,24 @@
         { shape: '3x3', color: '#ffc107', col: 3, row: 4 },  // жёлтая 3×3
       ],
     },
+    // ── Уровень 4: пять стенок, пять фигур ────────────────────────────────
+    {
+      cols: 6, rows: 7,
+      walls: [
+        { color: 'purple', dir: 'top',    col: 0 },  // фиолетовая — cols 0–2
+        { color: 'green',  dir: 'top',    col: 3 },  // зелёная    — cols 3–5
+        { color: 'orange', dir: 'left',   row: 4 },  // оранжевая  — rows 4–6
+        { color: 'red',    dir: 'right',  row: 4 },  // красная    — rows 4–6
+        { color: 'cyan',   dir: 'bottom', col: 2 },  // голубая    — cols 2–4
+      ],
+      figures: [
+        { shape: '2x3', color: '#c84bdf', col: 0, row: 2 },  // фиолетовая 2×3 (cols 0–1, rows 2–4)
+        { shape: '2x3', color: '#4caf50', col: 4, row: 2 },  // зелёная 2×3    (cols 4–5, rows 2–4)
+        { shape: '2x4', color: '#29b6f6', col: 2, row: 0 },  // голубая 2×4    (cols 2–3, rows 0–3)
+        { shape: '3x2', color: '#ff9800', col: 0, row: 5 },  // оранжевая 3×2  (cols 0–2, rows 5–6)
+        { shape: '3x2', color: '#f44336', col: 3, row: 5 },  // красная 3×2    (cols 3–5, rows 5–6)
+      ],
+    },
   ];
 
 
@@ -345,6 +412,7 @@
     '#ff9800': 'orange', '#f57c00': 'orange', '#ffa726': 'orange',
     '#1e88e5': 'blue',   '#1976d2': 'blue',   '#2196f3': 'blue',
     '#ffc107': 'yellow', '#ffb300': 'yellow', '#ff8f00': 'yellow',
+    '#f44336': 'red',    '#e53935': 'red',    '#ef5350': 'red',
   };
 
   // Строит сетку доски заново
@@ -719,7 +787,17 @@
           top:    rawY < 0,
           bottom: rawY > BOARD_H - figH,
         };
-        return walls.find(w => beyond[w._dir]) || null;
+        const candidates = walls.filter(w => beyond[w._dir]);
+        if (!candidates.length) return null;
+        if (candidates.length === 1) return candidates[0];
+        // Несколько стенок одного направления — берём ближайшую к текущей позиции фигуры
+        return candidates.reduce((best, w) => {
+          const horiz = w._dir === 'top' || w._dir === 'bottom';
+          const figPos  = horiz ? lastValidCol : lastValidRow;
+          const wMid    = w._startCell    + (WALL_CELLS - 1) / 2;
+          const bestMid = best._startCell + (WALL_CELLS - 1) / 2;
+          return Math.abs(figPos - wMid) < Math.abs(figPos - bestMid) ? w : best;
+        });
       }
       function fitsThroughWall(wall) {
         const horiz = wall._dir === 'top' || wall._dir === 'bottom';
@@ -884,6 +962,24 @@
     hideWinScreen();
     currentLevel = (currentLevel + 1) % LEVELS.length;
     loadLevel(currentLevel);
+    updateNavLabel();
+  });
+
+  const levelLabel = document.getElementById('level-label');
+  function updateNavLabel() {
+    levelLabel.textContent = `Level ${currentLevel + 1}`;
+  }
+
+  document.getElementById('prev-btn').addEventListener('click', () => {
+    currentLevel = (currentLevel - 1 + LEVELS.length) % LEVELS.length;
+    loadLevel(currentLevel);
+    updateNavLabel();
+  });
+
+  document.getElementById('next-btn').addEventListener('click', () => {
+    currentLevel = (currentLevel + 1) % LEVELS.length;
+    loadLevel(currentLevel);
+    updateNavLabel();
   });
 
   window.addEventListener('resize', () => {
@@ -893,6 +989,7 @@
   });
 
   loadLevel(0);
+  updateNavLabel();
   </script>
 </body>
 </html>
