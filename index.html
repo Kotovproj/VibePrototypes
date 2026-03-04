@@ -300,20 +300,20 @@
     },
     // ── Уровень 4: пять стенок, пять фигур ────────────────────────────────
     {
-      cols: 6, rows: 7,
+      cols: 5, rows: 6,
       walls: [
-        { color: 'purple', dir: 'top',    col: 0 },  // фиолетовая — cols 0–2
-        { color: 'green',  dir: 'top',    col: 3 },  // зелёная    — cols 3–5
-        { color: 'orange', dir: 'left',   row: 4 },  // оранжевая  — rows 4–6
-        { color: 'red',    dir: 'right',  row: 4 },  // красная    — rows 4–6
-        { color: 'cyan',   dir: 'bottom', col: 2 },  // голубая    — cols 2–4
+        { color: 'purple', dir: 'top',    col: 0, cells: 2 },  // фиолетовая — cols 0–1
+        { color: 'green',  dir: 'top',    col: 3, cells: 2 },  // зелёная    — cols 3–4
+        { color: 'orange', dir: 'left',   row: 4, cells: 2 },  // оранжевая  — rows 4–5
+        { color: 'red',    dir: 'right',  row: 4, cells: 2 },  // красная    — rows 4–5
+        { color: 'cyan',   dir: 'bottom', col: 1 },            // голубая    — cols 1–3
       ],
       figures: [
-        { shape: '2x3', color: '#c84bdf', col: 0, row: 2 },  // фиолетовая 2×3 (cols 0–1, rows 2–4)
-        { shape: '2x3', color: '#4caf50', col: 4, row: 2 },  // зелёная 2×3    (cols 4–5, rows 2–4)
-        { shape: '2x4', color: '#29b6f6', col: 2, row: 0 },  // голубая 2×4    (cols 2–3, rows 0–3)
-        { shape: '3x2', color: '#ff9800', col: 0, row: 5 },  // оранжевая 3×2  (cols 0–2, rows 5–6)
-        { shape: '3x2', color: '#f44336', col: 3, row: 5 },  // красная 3×2    (cols 3–5, rows 5–6)
+        { shape: '2x2', color: '#c84bdf', col: 0, row: 2 },  // фиолетовая 2×2 (cols 0–1, rows 2–3)
+        { shape: '2x2', color: '#4caf50', col: 3, row: 2 },  // зелёная 2×2    (cols 3–4, rows 2–3)
+        { shape: '1x3', color: '#29b6f6', col: 2, row: 0 },  // голубая 1×3    (col 2, rows 0–2)
+        { shape: '3x1', color: '#ff9800', col: 1, row: 4 },  // оранжевая 3×1  (cols 1–3, row 4)
+        { shape: '3x1', color: '#f44336', col: 1, row: 5 },  // красная 3×1    (cols 1–3, row 5)
       ],
     },
   ];
@@ -373,20 +373,23 @@
   }
 
   // Создаёт и добавляет стенку на frame
-  function makeWall(colorKey, dir, col, row) {
+  function makeWall(colorKey, dir, col, row, cells) {
+    cells = cells || WALL_CELLS;
+    const WALL_LONG_N = cells * CELL + (cells - 1) * GAP;
     const el = document.createElement('div');
     el.className = `wall ${colorKey}`;
     el.textContent = { top: '▲', bottom: '▼', right: '▶', left: '◀' }[dir];
-    el._colorKey = colorKey;
-    el._dir      = dir;
+    el._colorKey  = colorKey;
+    el._dir       = dir;
+    el._wallCells = cells;
     const horiz = dir === 'top' || dir === 'bottom';
-    const w = horiz ? WALL_LONG  : WALL_SHORT;
-    const h = horiz ? WALL_SHORT : WALL_LONG;
+    const w = horiz ? WALL_LONG_N : WALL_SHORT;
+    const h = horiz ? WALL_SHORT  : WALL_LONG_N;
     el.style.width  = w + 'px';
     el.style.height = h + 'px';
     const offset  = (BORDER - WALL_SHORT) / 2;
-    const wallCol = col !== undefined ? col : Math.floor((COLS - WALL_CELLS) / 2);
-    const wallRow = row !== undefined ? row : Math.floor((ROWS - WALL_CELLS) / 2);
+    const wallCol = col !== undefined ? col : Math.floor((COLS - cells) / 2);
+    const wallRow = row !== undefined ? row : Math.floor((ROWS - cells) / 2);
     const wallLeft = BORDER + PAD + wallCol * (CELL + GAP);
     const wallTop  = BORDER + PAD + wallRow * (CELL + GAP);
     if (dir === 'top')    { el.style.left = wallLeft + 'px'; el.style.top    = offset + 'px'; el._startCell = wallCol; }
@@ -659,23 +662,23 @@
         return candidates.reduce((best, w) => {
           const horiz = w._dir === 'top' || w._dir === 'bottom';
           const figPos  = horiz ? lastValidCol : lastValidRow;
-          const wMid    = w._startCell    + (WALL_CELLS - 1) / 2;
-          const bestMid = best._startCell + (WALL_CELLS - 1) / 2;
+          const wMid    = w._startCell    + (w._wallCells    - 1) / 2;
+          const bestMid = best._startCell + (best._wallCells - 1) / 2;
           return Math.abs(figPos - wMid) < Math.abs(figPos - bestMid) ? w : best;
         });
       }
       function fitsThroughWall(wall) {
         const horiz = wall._dir === 'top' || wall._dir === 'bottom';
-        return horiz ? fig._maxC + 1 <= WALL_CELLS : fig._maxR + 1 <= WALL_CELLS;
+        return horiz ? fig._maxC + 1 <= wall._wallCells : fig._maxR + 1 <= wall._wallCells;
       }
       function alignedWithWall(wall) {
         const horiz = wall._dir === 'top' || wall._dir === 'bottom';
         if (horiz) {
           return lastValidCol >= wall._startCell &&
-                 lastValidCol + fig._maxC <= wall._startCell + WALL_CELLS - 1;
+                 lastValidCol + fig._maxC <= wall._startCell + wall._wallCells - 1;
         } else {
           return lastValidRow >= wall._startCell &&
-                 lastValidRow + fig._maxR <= wall._startCell + WALL_CELLS - 1;
+                 lastValidRow + fig._maxR <= wall._startCell + wall._wallCells - 1;
         }
       }
       function updateWallHighlight(rawX, rawY) {
@@ -817,7 +820,7 @@
     occupied.clear();
     figureCount = 0;
 
-    cfg.walls.forEach(w => makeWall(w.color, w.dir, w.col, w.row));
+    cfg.walls.forEach(w => makeWall(w.color, w.dir, w.col, w.row, w.cells));
     cfg.figures.forEach(f => createFigure(f.shape, f.color, f.col, f.row));
 
     scaleGame();
