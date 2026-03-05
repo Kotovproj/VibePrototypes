@@ -153,6 +153,19 @@ body {
   opacity: 1;
   transition: opacity 0.35s ease;
 }
+#tutorial-hand {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 84px;
+  height: auto;
+  pointer-events: none;
+  z-index: 9000;
+  opacity: 0;
+  display: none;
+  transform: translate(0, 0);
+  transition: opacity 0.22s ease;
+}
 #start-overlay {
   position: fixed;
   inset: 0;

@@ -7,6 +7,150 @@ var startBtn = document.getElementById('start-btn');
 var sceneEl = document.getElementById('scene');
 var requiresStartLevelIndex = 6; // Level 7 (0-based)
 var startOverlayFadeMs = 300;
+var tutorialHandEl = document.getElementById('tutorial-hand');
+
+var tutorial = {
+  levelIndex: 0,
+  enabled: false,
+  step: 0,
+  dragging: false,
+  figuresByColor: {},
+  handAnim: null,
+  handLoopTimer: null,
+};
+
+function clearTutorialHandLoop() {
+  if (tutorial.handLoopTimer) {
+    clearTimeout(tutorial.handLoopTimer);
+    tutorial.handLoopTimer = null;
+  }
+  if (tutorial.handAnim) {
+    tutorial.handAnim.cancel();
+    tutorial.handAnim = null;
+  }
+}
+
+function hideTutorialHand(immediate) {
+  clearTutorialHandLoop();
+  tutorialHandEl.style.opacity = '0';
+  if (immediate) {
+    tutorialHandEl.style.display = 'none';
+    return;
+  }
+  setTimeout(function() {
+    if (!tutorial.enabled || tutorial.dragging) tutorialHandEl.style.display = 'none';
+  }, 220);
+}
+
+function gridStepPx(fig) {
+  var rect = fig.getBoundingClientRect();
+  var logicalW = fig._maxC * (CELL + GAP) + CELL;
+  var scale = rect.width / logicalW;
+  return (CELL + GAP) * scale;
+}
+
+function handStartForFigure(fig) {
+  var rect = fig.getBoundingClientRect();
+  var hw = tutorialHandEl.getBoundingClientRect().width || 84;
+  return {
+    x: rect.left + rect.width * 0.56 - hw * 0.52,
+    y: rect.top  + rect.height * 0.32 - hw * 0.72,
+  };
+}
+
+function animateTutorialHand(path) {
+  if (!tutorial.enabled || tutorial.dragging || !path || !path.length) return;
+  clearTutorialHandLoop();
+  tutorialHandEl.style.display = 'block';
+  tutorialHandEl.style.left = path[0].x + 'px';
+  tutorialHandEl.style.top  = path[0].y + 'px';
+  tutorialHandEl.style.transform = 'translate(0,0)';
+  requestAnimationFrame(function() { tutorialHandEl.style.opacity = '1'; });
+
+  var base = path[0];
+  var keyframes = path.map(function(p) {
+    return { transform: 'translate(' + Math.round(p.x - base.x) + 'px,' + Math.round(p.y - base.y) + 'px)' };
+  });
+  var duration = path.length > 2 ? 1350 : 900;
+  tutorial.handAnim = tutorialHandEl.animate(keyframes, {
+    duration: duration,
+    easing: 'cubic-bezier(.22,.61,.36,1)',
+    fill: 'forwards',
+  });
+  tutorial.handAnim.onfinish = function() {
+    tutorial.handAnim = null;
+    if (!tutorial.enabled || tutorial.dragging) return;
+    tutorial.handLoopTimer = setTimeout(function() {
+      runTutorialStep();
+    }, 480);
+  };
+}
+
+function runTutorialStep() {
+  if (!tutorial.enabled || tutorial.dragging) return;
+  var fig = tutorial.step === 0
+    ? tutorial.figuresByColor['#c84bdf']
+    : tutorial.figuresByColor['#29b6f6'];
+  if (!fig || !fig.isConnected) return;
+
+  var start = handStartForFigure(fig);
+  var stepPx = gridStepPx(fig);
+  if (tutorial.step === 0) {
+    animateTutorialHand([
+      start,
+      { x: start.x, y: start.y + stepPx },
+    ]);
+    return;
+  }
+  animateTutorialHand([
+    start,
+    { x: start.x - 2 * stepPx, y: start.y },
+    { x: start.x - 2 * stepPx, y: start.y - stepPx },
+  ]);
+}
+
+function setupTutorialForLevel(idx) {
+  tutorial.enabled = idx === tutorial.levelIndex;
+  tutorial.step = 0;
+  tutorial.dragging = false;
+  tutorial.figuresByColor = {};
+  hideTutorialHand(true);
+}
+
+window.onFigureCreated = function(fig) {
+  if (!tutorial.enabled) return;
+  tutorial.figuresByColor[fig._color] = fig;
+};
+
+window.onFigureDragState = function(fig, isDragging) {
+  if (!tutorial.enabled) return;
+  tutorial.dragging = isDragging;
+  if (isDragging) {
+    hideTutorialHand(false);
+    return;
+  }
+  if (tutorial.step < 2) {
+    setTimeout(function() {
+      if (tutorial.enabled && !tutorial.dragging) runTutorialStep();
+    }, 150);
+  }
+};
+
+window.onFigureRemoved = function(fig) {
+  if (!tutorial.enabled) return;
+  if (tutorial.step === 0 && fig._color === '#c84bdf') {
+    tutorial.step = 1;
+    setTimeout(function() {
+      if (tutorial.enabled && !tutorial.dragging) runTutorialStep();
+    }, 220);
+    return;
+  }
+  if (tutorial.step === 1 && fig._color === '#29b6f6') {
+    tutorial.step = 2;
+    tutorial.enabled = false;
+    hideTutorialHand(false);
+  }
+};
 
 function setStartGate(active) {
   if (active) {
@@ -27,8 +171,14 @@ window.onLevelComplete = function() {
 };
 
 function loadLevel(idx) {
+  setupTutorialForLevel(idx);
   initLevel(LEVELS[idx]);
   setStartGate(idx === requiresStartLevelIndex);
+  if (tutorial.enabled) {
+    setTimeout(function() {
+      if (tutorial.enabled && !tutorial.dragging) runTutorialStep();
+    }, 260);
+  }
 }
 
 // ── Fade ──────────────────────────────────────────────────────────────────────

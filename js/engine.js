@@ -294,6 +294,7 @@ function createFigure(shapeName, color, startCol, startRow, moveAxis) {
   placeFigure(fig, startCol, startRow, false);
   occupyCells(fig, fig._col, fig._row);
   attachDrag(fig);
+  if (typeof window.onFigureCreated === 'function') window.onFigureCreated(fig);
   return fig;
 }
 
@@ -309,6 +310,7 @@ function getXY(e) {
 
 function attachDrag(fig) {
   function startDrag(e) {
+    if (typeof window.onFigureDragState === 'function') window.onFigureDragState(fig, true);
     var prevCol = fig._col, prevRow = fig._row;
     var lastValidCol = prevCol, lastValidRow = prevRow;
     fig.classList.add('dragging');
@@ -457,6 +459,7 @@ function attachDrag(fig) {
     };
 
     var onUp = function(e) {
+      if (typeof window.onFigureDragState === 'function') window.onFigureDragState(fig, false);
       fig.classList.remove('dragging');
       fig.style.filter = '';
       fig.style.zIndex = 10;
@@ -488,6 +491,7 @@ function attachDrag(fig) {
           fig.style.opacity    = '0';
           setTimeout(function() {
             fig.remove();
+            if (typeof window.onFigureRemoved === 'function') window.onFigureRemoved(fig);
             figureCount--;
             if (figureCount === 0) {
               setTimeout(function() {
