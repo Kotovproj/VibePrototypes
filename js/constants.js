@@ -36,6 +36,7 @@ const COLOR_KEY = {
   '#4caf50': 'green',  '#388e3c': 'green',  '#43a047': 'green',
   '#29b6f6': 'cyan',   '#00bcd4': 'cyan',   '#26c6da': 'cyan',
   '#c84bdf': 'purple', '#ab47bc': 'purple', '#e040fb': 'purple',
+  '#ff5fa2': 'pink',   '#f06292': 'pink',
   '#ff9800': 'orange', '#f57c00': 'orange', '#ffa726': 'orange',
   '#1e88e5': 'blue',   '#1976d2': 'blue',   '#2196f3': 'blue',
   '#ffc107': 'yellow', '#ffb300': 'yellow', '#ff8f00': 'yellow',

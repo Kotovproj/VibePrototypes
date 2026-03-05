@@ -263,7 +263,7 @@ function addJelly(fig) {
   fig.classList.add('jelly');
   fig.addEventListener('animationend', function() { fig.classList.remove('jelly'); }, { once: true });
 }
-function createFigure(shapeName, color, startCol, startRow) {
+function createFigure(shapeName, color, startCol, startRow, moveAxis) {
   var cells = SHAPES[shapeName];
   var maxC  = Math.max.apply(null, cells.map(function(c) { return c[0]; }));
   var maxR  = Math.max.apply(null, cells.map(function(c) { return c[1]; }));
@@ -278,9 +278,17 @@ function createFigure(shapeName, color, startCol, startRow) {
   fig._maxR     = maxR;
   fig._color    = color;
   fig._colorKey = COLOR_KEY[color] || null;
+  fig._moveAxis = moveAxis || null;
   var canvas = document.createElement('canvas');
   drawFigureCanvas(canvas, cells, color, W, H);
   fig.appendChild(canvas);
+  if (fig._moveAxis === 'x' || fig._moveAxis === 'y') {
+    var arrow = document.createElement('div');
+    arrow.className = 'figure-arrow';
+    arrow.textContent = fig._moveAxis === 'x' ? '↔' : '↕';
+    arrow.style.fontSize = Math.max(30, Math.floor(Math.min(W, H) * 0.62)) + 'px';
+    fig.appendChild(arrow);
+  }
   scene.appendChild(fig);
   figureCount++;
   placeFigure(fig, startCol, startRow, false);
@@ -315,6 +323,8 @@ function attachDrag(fig) {
     e.stopPropagation();
     var figW = fig._maxC * (CELL + GAP) + CELL;
     var figH = fig._maxR * (CELL + GAP) + CELL;
+    var lockedRawX = cellPos(prevCol, prevRow).x;
+    var lockedRawY = cellPos(prevCol, prevRow).y;
 
     function hoveredWall(rawX, rawY) {
       var beyond = {
@@ -408,6 +418,8 @@ function attachDrag(fig) {
       var sr   = scene.getBoundingClientRect();
       var rawX = (xy.x - grabX - sr.left) / gameScale;
       var rawY = (xy.y - grabY - sr.top)  / gameScale;
+      if (fig._moveAxis === 'x') rawY = lockedRawY;
+      if (fig._moveAxis === 'y') rawX = lockedRawX;
       var overWall = updateWallHighlight(rawX, rawY);
       if (overWall) {
         var snap = trySnapToWall(overWall);
@@ -427,6 +439,8 @@ function attachDrag(fig) {
       var row = Math.round((py - PAD) / (CELL + GAP));
       var clampedCol = Math.max(0, Math.min(COLS - 1 - fig._maxC, col));
       var clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
+      if (fig._moveAxis === 'x') clampedRow = prevRow;
+      if (fig._moveAxis === 'y') clampedCol = prevCol;
       if (canPlace(fig, clampedCol, clampedRow)) {
         lastValidCol = clampedCol;
         lastValidRow = clampedRow;
@@ -451,6 +465,8 @@ function attachDrag(fig) {
       var sr2  = scene.getBoundingClientRect();
       var rawX = (xy.x - grabX - sr2.left) / gameScale;
       var rawY = (xy.y - grabY - sr2.top)  / gameScale;
+      if (fig._moveAxis === 'x') rawY = lockedRawY;
+      if (fig._moveAxis === 'y') rawX = lockedRawX;
       var wall = hoveredWall(rawX, rawY);
       if (wall) {
         var match = trySnapToWall(wall) !== null;
@@ -531,7 +547,7 @@ function initLevel(cfg) {
   figureCount = 0;
 
   cfg.walls.forEach(function(w) { makeWall(w.color, w.dir, w.col, w.row, w.cells); });
-  cfg.figures.forEach(function(f) { createFigure(f.shape, f.color, f.col, f.row); });
+  cfg.figures.forEach(function(f) { createFigure(f.shape, f.color, f.col, f.row, f.axis); });
 
   scaleGame();
 }

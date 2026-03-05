@@ -64,6 +64,7 @@ body {
 .wall.blue   { background: #1e88e5; }
 .wall.yellow { background: #ffc107; }
 .wall.red    { background: #f44336; }
+.wall.pink   { background: #ff5fa2; }
 .wall { transition: transform 0.12s, filter 0.12s, box-shadow 0.12s; }
 
 @keyframes shake {
@@ -114,6 +115,20 @@ body {
   position: absolute;
   top: 0; left: 0;
   pointer-events: none;
+}
+.figure-arrow {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.9);
+  font-family: 'Arial Black', Impact, sans-serif;
+  font-size: 52px;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ── призрак на сетке ────────────────────────────────────────────────── */
