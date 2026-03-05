@@ -2,6 +2,23 @@
 // Зависит от: js/constants.js (LEVELS), js/engine.js (initLevel, scaleGame, resizePCanvas)
 
 var currentLevel = 0;
+var startOverlay = document.getElementById('start-overlay');
+var startBtn = document.getElementById('start-btn');
+var sceneEl = document.getElementById('scene');
+var requiresStartLevelIndex = 6; // Level 7 (0-based)
+var startOverlayFadeMs = 300;
+
+function setStartGate(active) {
+  if (active) {
+    startOverlay.style.display = 'flex';
+    requestAnimationFrame(function() { startOverlay.style.opacity = '1'; });
+    sceneEl.style.pointerEvents = 'none';
+    return;
+  }
+  startOverlay.style.opacity = '0';
+  setTimeout(function() { startOverlay.style.display = 'none'; }, startOverlayFadeMs);
+  sceneEl.style.pointerEvents = '';
+}
 
 // Вызывается движком когда все фигуры убраны
 window.onLevelComplete = function() {
@@ -11,6 +28,7 @@ window.onLevelComplete = function() {
 
 function loadLevel(idx) {
   initLevel(LEVELS[idx]);
+  setStartGate(idx === requiresStartLevelIndex);
 }
 
 // ── Fade ──────────────────────────────────────────────────────────────────────
@@ -59,6 +77,9 @@ document.getElementById('next-btn').addEventListener('click', function() {
 
 document.getElementById('back-btn').addEventListener('click', function() {
   window.location = "uniwebview://close";
+});
+startBtn.addEventListener('click', function() {
+  setStartGate(false);
 });
 
 window.addEventListener('resize', function() {

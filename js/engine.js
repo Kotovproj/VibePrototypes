@@ -348,6 +348,12 @@ function attachDrag(fig) {
       var horiz = wall._dir === 'top' || wall._dir === 'bottom';
       return horiz ? fig._maxC + 1 <= wall._wallCells : fig._maxR + 1 <= wall._wallCells;
     }
+    function isAdjacentToWall(wall) {
+      if (wall._dir === 'top') return lastValidRow === 0;
+      if (wall._dir === 'bottom') return lastValidRow === ROWS - fig._maxR - 1;
+      if (wall._dir === 'left') return lastValidCol === 0;
+      return lastValidCol === COLS - fig._maxC - 1;
+    }
     function alignedWithWall(wall) {
       var horiz = wall._dir === 'top' || wall._dir === 'bottom';
       if (horiz) {
@@ -360,15 +366,14 @@ function attachDrag(fig) {
     }
     function trySnapToWall(wall) {
       if (!fig._colorKey || fig._colorKey !== wall._colorKey || !fitsThroughWall(wall)) return null;
+      if (!isAdjacentToWall(wall) || !alignedWithWall(wall)) return null;
       var snapCol, snapRow;
       if (wall._dir === 'top' || wall._dir === 'bottom') {
-        snapCol = Math.max(wall._startCell,
-                  Math.min(wall._startCell + wall._wallCells - fig._maxC - 1, lastValidCol));
-        snapRow = wall._dir === 'top' ? 0 : ROWS - fig._maxR - 1;
+        snapCol = lastValidCol;
+        snapRow = lastValidRow;
       } else {
-        snapRow = Math.max(wall._startCell,
-                  Math.min(wall._startCell + wall._wallCells - fig._maxR - 1, lastValidRow));
-        snapCol = wall._dir === 'left' ? 0 : COLS - fig._maxC - 1;
+        snapRow = lastValidRow;
+        snapCol = lastValidCol;
       }
       return { col: snapCol, row: snapRow };
     }
