@@ -348,15 +348,52 @@ function attachDrag(fig) {
                lastValidRow + fig._maxR <= wall._startCell + wall._wallCells - 1;
       }
     }
+    function trySnapToWall(wall) {
+      if (!fig._colorKey || fig._colorKey !== wall._colorKey || !fitsThroughWall(wall)) return null;
+      var snapCol, snapRow;
+      if (wall._dir === 'top' || wall._dir === 'bottom') {
+        snapCol = Math.max(wall._startCell,
+                  Math.min(wall._startCell + wall._wallCells - fig._maxC - 1, lastValidCol));
+        snapRow = wall._dir === 'top' ? 0 : ROWS - fig._maxR - 1;
+      } else {
+        snapRow = Math.max(wall._startCell,
+                  Math.min(wall._startCell + wall._wallCells - fig._maxR - 1, lastValidRow));
+        snapCol = wall._dir === 'left' ? 0 : COLS - fig._maxC - 1;
+      }
+      return { col: snapCol, row: snapRow };
+    }
+    function getNearWall(rawX, rawY) {
+      var SNAP = CELL + GAP;
+      var near = {
+        left:   rawX >= 0 && rawX < SNAP,
+        right:  rawX <= BOARD_W - figW && rawX > BOARD_W - figW - SNAP,
+        top:    rawY >= 0 && rawY < SNAP,
+        bottom: rawY <= BOARD_H - figH && rawY > BOARD_H - figH - SNAP,
+      };
+      var candidates = walls.filter(function(w) { return near[w._dir]; });
+      if (!candidates.length) return null;
+      if (candidates.length === 1) return candidates[0];
+      return candidates.reduce(function(best, w) {
+        var horiz = w._dir === 'top' || w._dir === 'bottom';
+        var figPos  = horiz ? lastValidCol : lastValidRow;
+        var wMid    = w._startCell    + (w._wallCells    - 1) / 2;
+        var bestMid = best._startCell + (best._wallCells - 1) / 2;
+        return Math.abs(figPos - wMid) < Math.abs(figPos - bestMid) ? w : best;
+      });
+    }
     function updateWallHighlight(rawX, rawY) {
       var w = hoveredWall(rawX, rawY);
+      var n = w ? null : getNearWall(rawX, rawY);
       walls.forEach(function(wall) {
         if (wall === w) {
-          var match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
-          wall.style.transform  = 'scale(1.1)';
-          wall.style.filter     = match
+          var match = trySnapToWall(wall) !== null;
+          wall.style.transform = 'scale(1.1)';
+          wall.style.filter    = match
             ? 'brightness(1.5) drop-shadow(0 0 14px rgba(255,255,255,0.9))'
             : 'brightness(0.55) saturate(0.3)';
+        } else if (n && wall === n && trySnapToWall(wall) !== null) {
+          wall.style.transform = 'scale(1.05)';
+          wall.style.filter    = 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.6))';
         } else {
           wall.style.transform = '';
           wall.style.filter    = '';
@@ -373,6 +410,11 @@ function attachDrag(fig) {
       var rawY = (xy.y - grabY - sr.top)  / gameScale;
       var overWall = updateWallHighlight(rawX, rawY);
       if (overWall) {
+        var snap = trySnapToWall(overWall);
+        if (snap) {
+          lastValidCol = snap.col;
+          lastValidRow = snap.row;
+        }
         var p = cellPos(lastValidCol, lastValidRow);
         fig.style.left = p.x + 'px';
         fig.style.top  = p.y + 'px';
@@ -411,7 +453,7 @@ function attachDrag(fig) {
       var rawY = (xy.y - grabY - sr2.top)  / gameScale;
       var wall = hoveredWall(rawX, rawY);
       if (wall) {
-        var match = fig._colorKey && fig._colorKey === wall._colorKey && fitsThroughWall(wall) && alignedWithWall(wall);
+        var match = trySnapToWall(wall) !== null;
         if (match) {
           wall.style.transition = 'transform 0.15s, filter 0.15s';
           wall.style.transform  = 'scale(1.18)';
