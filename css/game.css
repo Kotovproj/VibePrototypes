@@ -1,0 +1,185 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  overflow: hidden;
+  width: 100vw;
+  height: 100dvh;
+  background-color: #6bbdd4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpolygon points='18,6 10,20 26,20' fill='rgba(255,255,255,0.2)' transform='rotate(20,18,13)'/%3E%3Cpolygon points='72,18 64,32 80,32' fill='rgba(255,255,255,0.15)' transform='rotate(-25,72,25)'/%3E%3Cpolygon points='100,8 92,22 108,22' fill='rgba(255,255,255,0.12)' transform='rotate(50,100,15)'/%3E%3Cpolygon points='38,50 30,64 46,64' fill='rgba(255,255,255,0.18)' transform='rotate(-10,38,57)'/%3E%3Cpolygon points='88,55 80,69 96,69' fill='rgba(255,255,255,0.16)' transform='rotate(35,88,62)'/%3E%3Cpolygon points='10,82 2,96 18,96' fill='rgba(255,255,255,0.2)' transform='rotate(-40,10,89)'/%3E%3Cpolygon points='55,88 47,102 63,102' fill='rgba(255,255,255,0.14)' transform='rotate(15,55,95)'/%3E%3Cpolygon points='100,80 92,94 108,94' fill='rgba(255,255,255,0.18)' transform='rotate(-15,100,87)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
+/* ── рамка вокруг доски ───────────────────────────────────────────────── */
+#frame {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #3a4858;
+  border-radius: 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+/* ── доска ────────────────────────────────────────────────────────────── */
+#scene { position: relative; }
+
+#board {
+  display: grid;
+  grid-template-columns: repeat(6, 64px);
+  grid-template-rows:    repeat(7, 64px);
+  gap: 8px;
+  padding: 16px;
+  background: #3d4d60;
+  border-radius: 18px;
+  box-shadow: inset 0 3px 10px rgba(0,0,0,0.5);
+}
+
+.board-cell {
+  background: #2e3d4e;
+  border-radius: 8px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+/* ── стенки ───────────────────────────────────────────────────────────── */
+.wall {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: white;
+  font-size: 22px;
+  z-index: 30;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4),
+              inset 0 3px 0 rgba(255,255,255,0.3),
+              inset 0 -3px 0 rgba(0,0,0,0.2);
+  pointer-events: none;
+  user-select: none;
+}
+
+.wall.green  { background: #4caf50; }
+.wall.cyan   { background: #29b6f6; }
+.wall.purple { background: #c84bdf; }
+.wall.orange { background: #ff9800; }
+.wall.blue   { background: #1e88e5; }
+.wall.yellow { background: #ffc107; }
+.wall.red    { background: #f44336; }
+.wall { transition: transform 0.12s, filter 0.12s, box-shadow 0.12s; }
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-7px); }
+  40%     { transform: translateX(7px); }
+  65%     { transform: translateX(-4px); }
+  85%     { transform: translateX(4px); }
+}
+.figure.shake { animation: shake 0.35s ease; }
+
+@keyframes jelly {
+  0%   { transform: scale(1,    1   ); }
+  18%  { transform: scale(1.13, 0.87); }
+  38%  { transform: scale(0.9,  1.11); }
+  56%  { transform: scale(1.07, 0.94); }
+  72%  { transform: scale(0.97, 1.03); }
+  86%  { transform: scale(1.02, 0.99); }
+  100% { transform: scale(1,    1   ); }
+}
+.figure.jelly {
+  animation: jelly 0.48s cubic-bezier(.36,.07,.19,.97);
+  transform-origin: center bottom;
+}
+
+/* ── фигуры ───────────────────────────────────────────────────────────── */
+.figure {
+  position: absolute;
+  cursor: grab;
+  z-index: 10;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.12s ease-out, filter 0.12s ease-out;
+}
+.figure.dragging {
+  cursor: grabbing;
+  z-index: 20;
+  transform: scale(1.07) translateY(-6px);
+}
+.figure.returning {
+  transition: left 0.2s cubic-bezier(.25,.8,.25,1),
+              top  0.2s cubic-bezier(.25,.8,.25,1),
+              transform 0.12s ease-out, filter 0.12s ease-out;
+}
+.figure canvas {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+}
+
+/* ── призрак на сетке ────────────────────────────────────────────────── */
+#ghost {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  transition: left 0.05s ease-out, top 0.05s ease-out;
+}
+#ghost canvas {
+  position: absolute;
+  top: 0; left: 0;
+}
+
+/* ── fade overlay ────────────────────────────────────────────────────── */
+#fade-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 99999;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+
+/* ── back button ─────────────────────────────────────────────────────── */
+#back-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9999;
+}
+
+/* ── level nav ───────────────────────────────────────────────────────── */
+#level-nav {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+}
+#level-label {
+  font-family: 'Arial Black', Impact, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  min-width: 64px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+.nav-btn {
+  font-family: 'Arial Black', Impact, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fff;
+  background: rgba(255,255,255,0.18);
+  border: none;
+  border-radius: 20px;
+  padding: 6px 16px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  transition: background 0.12s, transform 0.1s;
+  user-select: none;
+}
+.nav-btn:hover  { background: rgba(255,255,255,0.30); }
+.nav-btn:active { transform: scale(0.93); }
