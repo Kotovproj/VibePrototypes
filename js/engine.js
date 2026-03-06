@@ -547,11 +547,15 @@ function attachDrag(fig) {
 function scaleGame() {
   var frameW = BOARD_W + 2 * BORDER;
   var frameH = BOARD_H + 2 * BORDER;
+  var reservedTop = Math.min(126, window.innerHeight * 0.18);
+  var reservedBottom = Math.min(116, window.innerHeight * 0.17);
+  var availW = window.innerWidth;
+  var availH = Math.max(220, window.innerHeight - reservedTop - reservedBottom);
   gameScale = Math.min(
-    window.innerWidth  / frameW,
-    window.innerHeight / frameH,
+    availW / frameW,
+    availH / frameH,
     1
-  ) * 0.94;
+  ) * 0.98;
   frame.style.transform = 'translate(-50%, -50%) scale(' + gameScale.toFixed(4) + ')';
 }
 

@@ -5,9 +5,15 @@ var currentLevel = 0;
 var startOverlay = document.getElementById('start-overlay');
 var startBtn = document.getElementById('start-btn');
 var sceneEl = document.getElementById('scene');
+var levelValue = document.getElementById('level-value');
+var timeValue = document.getElementById('time-value');
+var restartBtn = document.getElementById('restart-btn');
 var requiresStartLevelIndex = 6; // Level 7 (0-based)
 var startOverlayFadeMs = 300;
 var tutorialHandEl = document.getElementById('tutorial-hand');
+var levelTimerId = null;
+var levelTimerSeconds = 210;
+var defaultLevelTimeSeconds = 210;
 
 var tutorial = {
   levelIndex: 0,
@@ -117,6 +123,41 @@ function setupTutorialForLevel(idx) {
   hideTutorialHand(true);
 }
 
+function clearLevelTimer() {
+  if (!levelTimerId) return;
+  clearInterval(levelTimerId);
+  levelTimerId = null;
+}
+
+function formatTimer(seconds) {
+  var safe = Math.max(0, seconds);
+  var mm = Math.floor(safe / 60);
+  var ss = safe % 60;
+  return String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+}
+
+function renderTimer() {
+  timeValue.textContent = formatTimer(levelTimerSeconds);
+}
+
+function restartCurrentLevel() {
+  clearLevelTimer();
+  transitionToLevel(currentLevel);
+}
+
+function startLevelTimer() {
+  clearLevelTimer();
+  levelTimerSeconds = defaultLevelTimeSeconds;
+  renderTimer();
+  levelTimerId = setInterval(function() {
+    levelTimerSeconds -= 1;
+    renderTimer();
+    if (levelTimerSeconds > 0) return;
+    clearLevelTimer();
+    restartCurrentLevel();
+  }, 1000);
+}
+
 window.onFigureCreated = function(fig) {
   if (!tutorial.enabled) return;
   tutorial.figuresByColor[fig._color] = fig;
@@ -173,6 +214,7 @@ window.onLevelComplete = function() {
 function loadLevel(idx) {
   setupTutorialForLevel(idx);
   initLevel(LEVELS[idx]);
+  startLevelTimer();
   setStartGate(idx === requiresStartLevelIndex);
   if (tutorial.enabled) {
     setTimeout(function() {
@@ -197,6 +239,7 @@ function fadeOut(cb) {
 }
 
 function transitionToLevel(idx) {
+  clearLevelTimer();
   fadeOut(function() {
     currentLevel = idx;
     loadLevel(currentLevel);
@@ -214,7 +257,8 @@ function setLevel(value) {
 var levelLabel = document.getElementById('level-label');
 
 function updateNavLabel() {
-  levelLabel.textContent = 'Level ' + (currentLevel + 1);
+  levelLabel.textContent = 'Lvl ' + (currentLevel + 1);
+  levelValue.textContent = String(currentLevel + 1);
 }
 
 document.getElementById('prev-btn').addEventListener('click', function() {
@@ -227,6 +271,9 @@ document.getElementById('next-btn').addEventListener('click', function() {
 
 document.getElementById('back-btn').addEventListener('click', function() {
   window.location = "uniwebview://close";
+});
+restartBtn.addEventListener('click', function() {
+  restartCurrentLevel();
 });
 startBtn.addEventListener('click', function() {
   setStartGate(false);

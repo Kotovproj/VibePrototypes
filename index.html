@@ -7,21 +7,48 @@
   <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
+  <div id="hud-top">
+    <button class="icon-btn" id="back-btn" aria-label="Back">←</button>
+    <div id="hud-main">
+      <div id="level-badge" aria-live="polite">
+        <span class="badge-caption">Level</span>
+        <span class="badge-value" id="level-value">1</span>
+      </div>
+      <div id="time-panel" aria-live="polite">
+        <div id="time-caption">Time</div>
+        <div id="time-value">03:30</div>
+      </div>
+      <button class="icon-btn icon-btn-restart" id="restart-btn" aria-label="Restart">↻</button>
+    </div>
+  </div>
+
   <div id="frame">
     <div id="scene">
       <div id="board"></div>
     </div>
   </div>
 
-  <!-- Level nav -->
-  <div id="level-nav">
+  <!-- Debug level nav -->
+  <div id="level-nav" aria-label="Level debug switcher">
     <button class="nav-btn" id="prev-btn">◀</button>
-    <span id="level-label">Level 1</span>
+    <span id="level-label">Lvl 1</span>
     <button class="nav-btn" id="next-btn">▶</button>
   </div>
 
-  <!-- Back button -->
-  <button class="nav-btn" id="back-btn">✕</button>
+  <div id="boosters-bar" aria-label="Boosters">
+    <button class="booster-btn" aria-label="Booster locked level 8">
+      <span class="booster-icon">🔒</span>
+      <span class="booster-lvl">Lv.8</span>
+    </button>
+    <button class="booster-btn" aria-label="Booster locked level 12">
+      <span class="booster-icon">🔒</span>
+      <span class="booster-lvl">Lv.12</span>
+    </button>
+    <button class="booster-btn" aria-label="Booster locked level 16">
+      <span class="booster-icon">🔒</span>
+      <span class="booster-lvl">Lv.16</span>
+    </button>
+  </div>
 
   <!-- Fade overlay -->
   <div id="fade-overlay"></div>
