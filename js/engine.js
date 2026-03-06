@@ -121,10 +121,23 @@ function drawFigureCanvas(canvas, cells, color, W, H, outlineColor) {
   if (outlineColor) {
     buildFigurePath(ctx, cells);
     ctx.save();
-    ctx.strokeStyle = outlineColor;
-    ctx.lineWidth = 10;
+    // Contrast underlay keeps the outline visible on both dark and bright pieces.
+    ctx.strokeStyle = 'rgba(16,22,36,0.42)';
+    ctx.lineWidth = 8;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+    buildFigurePath(ctx, cells);
+    ctx.save();
+    ctx.strokeStyle = outlineColor;
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = outlineColor;
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     ctx.stroke();
     ctx.restore();
   }
@@ -162,7 +175,7 @@ function redrawFigureCanvas(fig) {
     fig._color,
     fig._W,
     fig._H,
-    fig._outlineActive ? fig._outlineColor : null
+    fig._outlineVisible ? fig._outlineColor : null
   );
 }
 
@@ -345,6 +358,7 @@ function createFigure(shapeName, color, startCol, startRow, moveAxis, outlineCol
   fig._color    = color;
   fig._coreColorKey = toColorKey(color);
   fig._outlineColor = outlineColor || null;
+  fig._outlineVisible = !!fig._outlineColor;
   fig._outlineColorKey = toColorKey(outlineColor || null);
   fig._outlineActive = !!fig._outlineColorKey;
   fig._colorKey = currentFigureColorKey(fig);
@@ -414,15 +428,50 @@ function getXY(e) {
   return { x: e.clientX, y: e.clientY };
 }
 
+function isPointInsideFigureShape(fig, clientX, clientY) {
+  var rect = fig.getBoundingClientRect();
+  if (!rect.width || !rect.height) return false;
+  var localX = (clientX - rect.left) / gameScale;
+  var localY = (clientY - rect.top) / gameScale;
+  if (localX < 0 || localY < 0 || localX > fig._W || localY > fig._H) return false;
+  if (!fig._hitCtx) {
+    var hitCanvas = document.createElement('canvas');
+    hitCanvas.width = Math.max(1, Math.ceil(fig._W));
+    hitCanvas.height = Math.max(1, Math.ceil(fig._H));
+    fig._hitCtx = hitCanvas.getContext('2d');
+  }
+  var ctx = fig._hitCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  buildFigurePath(ctx, fig._cells);
+  return ctx.isPointInPath(localX, localY);
+}
+
+function findUnderlyingFigureAtPoint(fig, clientX, clientY) {
+  var prev = fig.style.pointerEvents;
+  fig.style.pointerEvents = 'none';
+  var hit = document.elementFromPoint(clientX, clientY);
+  fig.style.pointerEvents = prev || '';
+  if (!hit || !hit.closest) return null;
+  var targetFig = hit.closest('.figure');
+  return targetFig && targetFig !== fig ? targetFig : null;
+}
+
 function attachDrag(fig) {
   function startDrag(e) {
+    var xy = getXY(e);
+    if (!isPointInsideFigureShape(fig, xy.x, xy.y)) {
+      var underlying = findUnderlyingFigureAtPoint(fig, xy.x, xy.y);
+      if (underlying && typeof underlying._startDrag === 'function') {
+        underlying._startDrag(e);
+      }
+      return;
+    }
     if (typeof window.onFigureDragState === 'function') window.onFigureDragState(fig, true);
     var prevCol = fig._col, prevRow = fig._row;
     var lastValidCol = prevCol, lastValidRow = prevRow;
     fig.classList.add('dragging');
     fig.style.zIndex = 20;
     fig.style.filter = 'drop-shadow(0 16px 24px rgba(0,0,0,0.55)) drop-shadow(0 0 18px ' + fig._color + 'cc)';
-    var xy = getXY(e);
     var rect = fig.getBoundingClientRect();
     var grabX = xy.x - rect.left;
     var grabY = xy.y - rect.top;
@@ -534,6 +583,7 @@ function attachDrag(fig) {
       spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._outlineColor || wallHex, 26);
       fig.classList.add('outline-break');
       setTimeout(function() { fig.classList.remove('outline-break'); }, 320);
+      fig._outlineVisible = false;
       fig._outlineActive = false;
       fig._colorKey = currentFigureColorKey(fig);
       redrawFigureCanvas(fig);
@@ -705,6 +755,7 @@ function attachDrag(fig) {
 
   fig.addEventListener('mousedown', startDrag);
   fig.addEventListener('touchstart', startDrag, { passive: false });
+  fig._startDrag = startDrag;
 }
 
 // ── Scale ─────────────────────────────────────────────────────────────────────
