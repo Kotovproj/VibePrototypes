@@ -328,23 +328,30 @@ function attachDrag(fig) {
     var lockedRawX = cellPos(prevCol, prevRow).x;
     var lockedRawY = cellPos(prevCol, prevRow).y;
 
-    function hoveredWall(rawX, rawY) {
-      var beyond = {
-        left:   rawX < 0,
-        right:  rawX > BOARD_W - figW,
-        top:    rawY < 0,
-        bottom: rawY > BOARD_H - figH,
-      };
-      var candidates = walls.filter(function(w) { return beyond[w._dir]; });
+    function pickBestWall(candidates) {
       if (!candidates.length) return null;
       if (candidates.length === 1) return candidates[0];
-      return candidates.reduce(function(best, w) {
+      var matching = candidates.filter(function(w) {
+        return !!fig._colorKey && fig._colorKey === w._colorKey;
+      });
+      var pool = matching.length ? matching : candidates;
+      return pool.reduce(function(best, w) {
         var horiz = w._dir === 'top' || w._dir === 'bottom';
-        var figPos  = horiz ? lastValidCol : lastValidRow;
-        var wMid    = w._startCell    + (w._wallCells    - 1) / 2;
+        var figPos = horiz ? lastValidCol : lastValidRow;
+        var wMid = w._startCell + (w._wallCells - 1) / 2;
         var bestMid = best._startCell + (best._wallCells - 1) / 2;
         return Math.abs(figPos - wMid) < Math.abs(figPos - bestMid) ? w : best;
       });
+    }
+    function hoveredWall(pointerX, pointerY) {
+      var beyond = {
+        left:   pointerX < 0,
+        right:  pointerX > BOARD_W,
+        top:    pointerY < 0,
+        bottom: pointerY > BOARD_H,
+      };
+      var candidates = walls.filter(function(w) { return beyond[w._dir]; });
+      return pickBestWall(candidates);
     }
     function fitsThroughWall(wall) {
       var horiz = wall._dir === 'top' || wall._dir === 'bottom';
@@ -388,18 +395,10 @@ function attachDrag(fig) {
         bottom: rawY <= BOARD_H - figH && rawY > BOARD_H - figH - SNAP,
       };
       var candidates = walls.filter(function(w) { return near[w._dir]; });
-      if (!candidates.length) return null;
-      if (candidates.length === 1) return candidates[0];
-      return candidates.reduce(function(best, w) {
-        var horiz = w._dir === 'top' || w._dir === 'bottom';
-        var figPos  = horiz ? lastValidCol : lastValidRow;
-        var wMid    = w._startCell    + (w._wallCells    - 1) / 2;
-        var bestMid = best._startCell + (best._wallCells - 1) / 2;
-        return Math.abs(figPos - wMid) < Math.abs(figPos - bestMid) ? w : best;
-      });
+      return pickBestWall(candidates);
     }
-    function updateWallHighlight(rawX, rawY) {
-      var w = hoveredWall(rawX, rawY);
+    function updateWallHighlight(rawX, rawY, pointerX, pointerY) {
+      var w = hoveredWall(pointerX, pointerY);
       var n = w ? null : getNearWall(rawX, rawY);
       walls.forEach(function(wall) {
         if (wall === w) {
@@ -425,12 +424,14 @@ function attachDrag(fig) {
       var sr   = scene.getBoundingClientRect();
       var rawX = (xy.x - grabX - sr.left) / gameScale;
       var rawY = (xy.y - grabY - sr.top)  / gameScale;
+      var pointerX = (xy.x - sr.left) / gameScale;
+      var pointerY = (xy.y - sr.top) / gameScale;
       if (fig._moveAxis === 'x') rawY = lockedRawY;
       if (fig._moveAxis === 'y') rawX = lockedRawX;
-      var overWall = updateWallHighlight(rawX, rawY);
+      var overWall = updateWallHighlight(rawX, rawY, pointerX, pointerY);
       if (overWall) {
         var snap = trySnapToWall(overWall);
-        if (snap) {
+        if (snap && canPlace(fig, snap.col, snap.row)) {
           lastValidCol = snap.col;
           lastValidRow = snap.row;
         }
@@ -473,11 +474,14 @@ function attachDrag(fig) {
       var sr2  = scene.getBoundingClientRect();
       var rawX = (xy.x - grabX - sr2.left) / gameScale;
       var rawY = (xy.y - grabY - sr2.top)  / gameScale;
+      var pointerX = (xy.x - sr2.left) / gameScale;
+      var pointerY = (xy.y - sr2.top) / gameScale;
       if (fig._moveAxis === 'x') rawY = lockedRawY;
       if (fig._moveAxis === 'y') rawX = lockedRawX;
-      var wall = hoveredWall(rawX, rawY);
+      var wall = hoveredWall(pointerX, pointerY);
       if (wall) {
-        var match = trySnapToWall(wall) !== null;
+        var snapOnDrop = trySnapToWall(wall);
+        var match = !!snapOnDrop && canPlace(fig, snapOnDrop.col, snapOnDrop.row);
         if (match) {
           wall.style.transition = 'transform 0.15s, filter 0.15s';
           wall.style.transform  = 'scale(1.18)';

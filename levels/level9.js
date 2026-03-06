@@ -1,0 +1,30 @@
+// ── Уровень 9 ──────────────────────────────────────────────────
+LEVELS.push({
+  cols: 5, rows: 7,
+  walls: [
+    { color: 'purple', dir: 'top', col: 1, cells: 3 },
+    { color: 'red', dir: 'left', row: 0, cells: 1 },
+    { color: 'green', dir: 'right', row: 2, cells: 1 },
+    { color: 'yellow', dir: 'right', row: 3, cells: 1 },
+    { color: 'red', dir: 'right', row: 4, cells: 1 },
+    { color: 'orange', dir: 'bottom', col: 1, cells: 3 },
+    { color: 'cyan', dir: 'left', row: 1, cells: 3 },
+  ],
+  figures: [
+    { shape: '2x1', color: '#f44336', col: 3, row: 0, axis: 'x' },
+    { shape: '1x1', color: '#c84bdf', col: 2, row: 0 },
+    { shape: '1x1', color: '#f44336', col: 1, row: 1 },
+    { shape: '1x2', color: '#ff9800', col: 0, row: 1 },
+    { shape: '1x1', color: '#c84bdf', col: 1, row: 2, axis: 'y' },
+    { shape: '1x1', color: '#ffc107', col: 2, row: 3, axis: 'x' },
+    { shape: '2x1', color: '#4caf50', col: 0, row: 3 },
+    { shape: '1x1', color: '#29b6f6', col: 0, row: 4 },
+    { shape: '2x1', color: '#f44336', col: 1, row: 4, axis: 'x' },
+    { shape: '1x1', color: '#4caf50', col: 3, row: 4 },
+    { shape: '2x1', color: '#ffc107', col: 2, row: 5 },
+    { shape: '1x1', color: '#ff9800', col: 0, row: 6 },
+    { shape: '3x2', color: '#29b6f6', col: 2, row: 1 },
+    { shape: '1x3', color: '#29b6f6', col: 4, row: 4 },
+    { shape: '1x2', color: '#c84bdf', col: 1, row: 5, axis: 'y' },
+  ],
+});

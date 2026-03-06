@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Level Builder</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#12121f;color:#ddd;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header ── */
+header{background:#1a1a30;padding:10px 18px;display:flex;align-items:center;gap:14px;border-bottom:1px solid #2a2a50;flex-shrink:0}
+header h1{font-size:17px;color:#e94560;letter-spacing:1px}
+header .sub{font-size:11px;color:#666;margin-left:auto}
+
+/* ── Layout ── */
+.body{display:flex;flex:1;overflow:hidden}
+.panel{background:#1a1a30;padding:14px;overflow-y:auto;border-right:1px solid #2a2a50;width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:4px}
+.panel.right{border-right:none;border-left:1px solid #2a2a50;width:220px}
+.center{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px;background:#12121f}
+.bottom{height:160px;background:#0d0d1a;border-top:1px solid #2a2a50;display:flex;flex-direction:column;padding:10px 16px;flex-shrink:0}
+
+/* ── Panel labels ── */
+.ph{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#555;margin-top:10px;margin-bottom:4px;font-weight:600}
+.ph:first-child{margin-top:0}
+hr{border:none;border-top:1px solid #2a2a50;margin:10px 0}
+
+/* ── Inputs ── */
+label{font-size:11px;color:#888;display:block;margin-bottom:3px;margin-top:8px}
+label:first-of-type{margin-top:0}
+input[type=number],select{width:100%;background:#0f0f22;border:1px solid #2a2a50;color:#ddd;padding:5px 8px;border-radius:5px;font-size:12px;outline:none}
+input[type=number]:focus,select:focus{border-color:#e94560}
+
+/* ── Buttons ── */
+.btn{width:100%;padding:7px;background:#1e1e40;border:1px solid #2a2a50;color:#ccc;border-radius:5px;cursor:pointer;font-size:12px;text-align:center;margin-top:6px;transition:background .15s}
+.btn:hover{background:#2a2a55}
+.btn.primary{background:#e94560;border-color:#e94560;color:#fff}
+.btn.primary:hover{background:#c73650}
+.btn.sm{padding:4px 8px;font-size:11px;margin-top:0;width:auto}
+.btn.danger{background:#3a1020;border-color:#6a2030;color:#ff8888}
+.btn.danger:hover{background:#5a1828}
+
+/* ── Color dots ── */
+.color-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.cdot{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s}
+.cdot:hover{transform:scale(1.18)}
+.cdot.sel{border-color:#fff}
+
+/* ── Axis buttons ── */
+.axis-row{display:flex;gap:5px;margin-top:5px}
+.ax-btn{flex:1;padding:5px;background:#1e1e40;border:1px solid #2a2a50;color:#888;border-radius:4px;cursor:pointer;font-size:12px;text-align:center}
+.ax-btn.active{background:#e94560;border-color:#e94560;color:#fff}
+
+/* ── Wall list ── */
+.wall-item{display:flex;align-items:center;gap:6px;padding:5px 7px;background:#0f0f22;border-radius:4px;margin-top:5px;font-size:11px;color:#bbb}
+.wdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.wdel{cursor:pointer;margin-left:auto;color:#e94560;font-size:14px;line-height:1;padding:0 2px}
+.wdel:hover{color:#ff6080}
+
+/* ── Grid ── */
+#grid-wrap{position:relative;display:inline-block}
+#grid{display:grid;gap:5px;cursor:crosshair;user-select:none;position:relative}
+.gc{width:52px;height:52px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;position:relative;transition:background .1s}
+.gc.hv{background:rgba(255,255,255,0.13)}
+.gc.hv-bad{background:rgba(255,60,60,0.18)}
+
+/* figure overlay on grid */
+.fov{position:absolute;border-radius:7px;z-index:2;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.88;transition:filter .12s}
+.fov:hover{filter:brightness(1.35);z-index:5}
+.fov .fax{font-size:clamp(14px,40%,22px);opacity:.7;pointer-events:none}
+
+/* wall indicator bands on grid */
+.wband{position:absolute;z-index:3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#000;pointer-events:none;border-radius:3px;opacity:.85}
+
+/* ── Code output ── */
+.out-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.out-hdr h3{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#555;font-weight:600}
+#code-out{flex:1;font-family:'Cascadia Code','Fira Code',monospace;font-size:11px;background:transparent;border:none;color:#7ec87e;resize:none;width:100%;outline:none;line-height:1.5}
+
+/* wall css colors */
+.bg-cyan{background:#29b6f6}.bg-purple{background:#c84bdf}.bg-pink{background:#ff5fa2}
+.bg-orange{background:#ff9800}.bg-blue{background:#1e88e5}.bg-yellow{background:#ffc107}
+.bg-red{background:#f44336}.bg-green{background:#4caf50}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬛ Level Builder</h1>
+  <span class="sub">Наводи → превью | Клик → разместить | ПКМ на фигуре → удалить</span>
+</header>
+
+<div class="body">
+
+<!-- ══ LEFT PANEL ══ -->
+<div class="panel">
+
+  <div class="ph">Сетка</div>
+  <label>Колонны (cols)
+    <input type="number" id="in-cols" value="6" min="2" max="12">
+  </label>
+  <label>Строки (rows)
+    <input type="number" id="in-rows" value="7" min="2" max="16">
+  </label>
+  <button class="btn" onclick="applyGrid()">Применить</button>
+
+  <hr>
+  <div class="ph">Стенки</div>
+
+  <label>Направление
+    <select id="w-dir">
+      <option value="top">▲ top</option>
+      <option value="bottom">▼ bottom</option>
+      <option value="left">◀ left</option>
+      <option value="right">▶ right</option>
+    </select>
+  </label>
+  <label>Цвет стенки
+    <select id="w-color">
+      <option value="cyan">cyan</option>
+      <option value="purple">purple</option>
+      <option value="pink">pink</option>
+      <option value="orange">orange</option>
+      <option value="blue">blue</option>
+      <option value="yellow">yellow</option>
+      <option value="red">red</option>
+      <option value="green">green</option>
+    </select>
+  </label>
+  <label>Начало (col/row)
+    <input type="number" id="w-start" value="0" min="0">
+  </label>
+  <label>Ячеек (cells)
+    <input type="number" id="w-cells" value="3" min="1" max="12">
+  </label>
+  <button class="btn primary" onclick="addWall()">+ Добавить стенку</button>
+
+  <div id="wall-list"></div>
+
+  <hr>
+  <div class="ph">Фигуры (<span id="fig-count">0</span>)</div>
+  <button class="btn danger" onclick="clearFigures()">Очистить фигуры</button>
+
+</div>
+
+<!-- ══ CENTER ══ -->
+<div class="center">
+  <div id="grid-wrap">
+    <div id="grid"></div>
+  </div>
+</div>
+
+<!-- ══ RIGHT PANEL ══ -->
+<div class="panel right">
+
+  <div class="ph">Форма</div>
+  <select id="sel-shape" onchange="renderGrid()">
+    <option value="1x1">1×1</option>
+    <option value="2x1">2×1 horizontal</option>
+    <option value="3x1">3×1 horizontal</option>
+    <option value="1x2">1×2 vertical</option>
+    <option value="1x3">1×3 vertical</option>
+    <option value="1x4">1×4 vertical</option>
+    <option value="2x2">2×2 square</option>
+    <option value="2x3">2×3</option>
+    <option value="2x4">2×4</option>
+    <option value="2x5">2×5</option>
+    <option value="3x2">3×2</option>
+    <option value="3x3">3×3 square</option>
+    <option value="3x4">3×4 big</option>
+    <option value="L">L</option>
+    <option value="J">J</option>
+    <option value="T">T</option>
+    <option value="S">S</option>
+    <option value="Z">Z</option>
+    <option value="fat_T">fat T</option>
+    <option value="fat_J">fat J</option>
+    <option value="mini_L">mini L</option>
+    <option value="mini_J">mini J</option>
+  </select>
+
+  <div class="ph" style="margin-top:12px">Цвет фигуры</div>
+  <div class="color-row" id="color-row"></div>
+  <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+    <span style="font-size:11px;color:#666">Hex:</span>
+    <input type="color" id="color-custom" value="#c84bdf" style="width:36px;height:24px;padding:1px;border-radius:4px;border:1px solid #2a2a50;background:#0f0f22;cursor:pointer">
+    <input type="text" id="color-hex" value="#c84bdf" style="flex:1;font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid #2a2a50;background:#0f0f22;color:#ddd">
+  </div>
+
+  <div class="ph" style="margin-top:12px">Ось движения</div>
+  <div class="axis-row">
+    <div class="ax-btn active" id="ax-none" onclick="setAxis(null)">Нет</div>
+    <div class="ax-btn" id="ax-x" onclick="setAxis('x')">↔ X</div>
+    <div class="ax-btn" id="ax-y" onclick="setAxis('y')">↕ Y</div>
+  </div>
+
+  <hr>
+  <div class="ph">Цветовой ключ</div>
+  <div style="font-size:10px;color:#555;line-height:1.6">
+    Цвет фигуры должен совпадать с цветом стенки чтобы фигура в неё «провалилась».
+    <br><br>
+    Соответствия:
+  </div>
+  <div id="color-key-map" style="margin-top:6px;font-size:10px;line-height:1.8;color:#888"></div>
+
+</div>
+</div>
+
+<!-- ══ BOTTOM ══ -->
+<div class="bottom">
+  <div class="out-hdr">
+    <h3>Сгенерированный код</h3>
+    <button class="btn sm" onclick="copyCode()">Копировать</button>
+    <button class="btn sm primary" onclick="downloadLevel()">Скачать levelN.js</button>
+    <span id="copy-ok" style="font-size:11px;color:#7ec87e;display:none">✓ скопировано</span>
+    <label style="margin:0;margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:#666">
+      Номер уровня:
+      <input type="number" id="level-num" value="9" min="1" style="width:50px;padding:3px 6px;font-size:12px">
+    </label>
+  </div>
+  <textarea id="code-out" readonly></textarea>
+</div>
+
+<script>
+// ── Shapes ─────────────────────────────────────────────────────────────────
+const SHAPES = {
+  '1x1':   [[0,0]],
+  '2x1':   [[0,0],[1,0]],
+  '3x1':   [[0,0],[1,0],[2,0]],
+  '1x2':   [[0,0],[0,1]],
+  '1x3':   [[0,0],[0,1],[0,2]],
+  '1x4':   [[0,0],[0,1],[0,2],[0,3]],
+  '2x2':   [[0,0],[1,0],[0,1],[1,1]],
+  '3x4':   [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3]],
+  '2x5':   [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4]],
+  '3x3':   [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],
+  '2x3':   [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]],
+  '2x4':   [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3]],
+  '3x2':   [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]],
+  'L':     [[0,0],[0,1],[0,2],[1,2]],
+  'J':     [[1,0],[1,1],[0,2],[1,2]],
+  'T':     [[0,0],[1,0],[2,0],[1,1]],
+  'S':     [[1,0],[2,0],[0,1],[1,1]],
+  'Z':     [[0,0],[1,0],[1,1],[2,1]],
+  'fat_T': [[0,0],[1,0],[0,1],[1,1],[2,1],[0,2],[1,2]],
+  'fat_J': [[1,0],[2,0],[1,1],[2,1],[0,2],[1,2],[2,2]],
+  'mini_L': [[0,0],[0,1],[1,1]],
+  'mini_J': [[0,0],[1,0],[1,1]],  // actually [[1,0],[0,1],[1,1]] wait no:
+  // mini_J from constants: [[0,0],[1,0],[1,1]] — keeping as-is
+};
+
+const COLOR_KEY = {
+  '#4caf50':'green','#388e3c':'green','#43a047':'green',
+  '#29b6f6':'cyan','#00bcd4':'cyan','#26c6da':'cyan',
+  '#c84bdf':'purple','#ab47bc':'purple','#e040fb':'purple',
+  '#ff5fa2':'pink','#f06292':'pink',
+  '#ff9800':'orange','#f57c00':'orange','#ffa726':'orange',
+  '#1e88e5':'blue','#1976d2':'blue','#2196f3':'blue',
+  '#ffc107':'yellow','#ffb300':'yellow','#ff8f00':'yellow',
+  '#f44336':'red','#e53935':'red','#ef5350':'red',
+};
+
+const WALL_CSS = {
+  cyan:'#29b6f6',purple:'#c84bdf',pink:'#ff5fa2',
+  orange:'#ff9800',blue:'#1e88e5',yellow:'#ffc107',
+  red:'#f44336',green:'#4caf50',
+};
+
+const PRESET_COLORS = [
+  '#c84bdf','#29b6f6','#f44336','#ff9800',
+  '#ffc107','#4caf50','#1e88e5','#ff5fa2','#1976d2','#ff5722',
+];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let state = { cols: 6, rows: 7, walls: [], figures: [] };
+let selColor = '#c84bdf';
+let selAxis  = null;
+let hoverCol = -1, hoverRow = -1;
+
+const CELL = 52, GAP = 5;
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+function boot() {
+  buildColorRow();
+  buildColorKeyMap();
+  applyGrid();
+  updateWallList();
+  generateCode();
+}
+
+function buildColorRow() {
+  const row = document.getElementById('color-row');
+  row.innerHTML = '';
+  PRESET_COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'cdot' + (c === selColor ? ' sel' : '');
+    d.style.background = c;
+    d.title = COLOR_KEY[c] || c;
+    d.onclick = () => { selColor = c; syncColorInputs(); refreshDots(); renderGrid(); };
+    row.appendChild(d);
+  });
+}
+
+function syncColorInputs() {
+  document.getElementById('color-custom').value = selColor;
+  document.getElementById('color-hex').value = selColor;
+}
+
+function refreshDots() {
+  document.querySelectorAll('.cdot').forEach((d,i) => {
+    d.classList.toggle('sel', PRESET_COLORS[i] === selColor);
+  });
+}
+
+document.getElementById('color-custom').addEventListener('input', function() {
+  selColor = this.value;
+  document.getElementById('color-hex').value = selColor;
+  refreshDots();
+  renderGrid();
+});
+document.getElementById('color-hex').addEventListener('change', function() {
+  if (/^#[0-9a-fA-F]{6}$/.test(this.value)) {
+    selColor = this.value.toLowerCase();
+    document.getElementById('color-custom').value = selColor;
+    refreshDots();
+    renderGrid();
+  }
+});
+
+function buildColorKeyMap() {
+  const el = document.getElementById('color-key-map');
+  const map = {};
+  Object.entries(COLOR_KEY).forEach(([hex, name]) => {
+    if (!map[name]) map[name] = [];
+    map[name].push(hex);
+  });
+  el.innerHTML = Object.entries(map).map(([name, hexes]) =>
+    `<span style="color:${WALL_CSS[name]||'#aaa'}">■ ${name}</span> = ${hexes[0]}<br>`
+  ).join('');
+}
+
+// ── Hover preview element (persistent, survives grid rebuilds) ─────────────
+const hoverPreview = document.createElement('div');
+hoverPreview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;display:none;border-radius:7px;border:2px dashed rgba(255,255,255,0.55);transition:none;box-sizing:border-box';
+
+// ── Grid-level events (set up once) ────────────────────────────────────────
+(function setupGridEvents() {
+  const grid = document.getElementById('grid');
+
+  grid.addEventListener('mousemove', function(e) {
+    const rect = grid.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const c = Math.min(Math.max(0, Math.floor(x / (CELL + GAP))), state.cols - 1);
+    const r = Math.min(Math.max(0, Math.floor(y / (CELL + GAP))), state.rows - 1);
+    if (c !== hoverCol || r !== hoverRow) {
+      hoverCol = c; hoverRow = r;
+      updateHoverPreview();
+    }
+  });
+
+  grid.addEventListener('mouseleave', function() {
+    hoverCol = -1; hoverRow = -1;
+    hoverPreview.style.display = 'none';
+  });
+
+  grid.addEventListener('click', function() {
+    if (hoverCol < 0 || hoverRow < 0) return;
+    placeFigure(hoverCol, hoverRow);
+  });
+
+  grid.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    const rect = grid.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const c = Math.floor(x / (CELL + GAP));
+    const r = Math.floor(y / (CELL + GAP));
+    const occ = buildOccupied();
+    const fi = occ.get(`${c},${r}`);
+    if (fi !== undefined) removeFigure(fi);
+  });
+})();
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function buildOccupied() {
+  const occ = new Map();
+  state.figures.forEach((fig, fi) => {
+    SHAPES[fig.shape].forEach(([dc, dr]) => {
+      occ.set(`${fig.col + dc},${fig.row + dr}`, fi);
+    });
+  });
+  return occ;
+}
+
+function getPlacementPos(col, row) {
+  const shape = document.getElementById('sel-shape').value;
+  const cells = SHAPES[shape];
+  const maxC = Math.max(...cells.map(c => c[0]));
+  const maxR = Math.max(...cells.map(c => c[1]));
+  return {
+    shape, cells,
+    ac: Math.min(col, state.cols - 1 - maxC),
+    ar: Math.min(row, state.rows - 1 - maxR),
+    maxC, maxR,
+  };
+}
+
+function updateHoverPreview() {
+  const grid = document.getElementById('grid');
+  if (!hoverPreview.parentNode) grid.appendChild(hoverPreview);
+  if (hoverCol < 0 || hoverRow < 0) { hoverPreview.style.display = 'none'; return; }
+
+  const { shape, cells, ac, ar, maxC, maxR } = getPlacementPos(hoverCol, hoverRow);
+  const W = maxC * (CELL + GAP) + CELL;
+  const H = maxR * (CELL + GAP) + CELL;
+  const occ = buildOccupied();
+  const valid = cells.every(([dc, dr]) => !occ.has(`${ac + dc},${ar + dr}`));
+
+  hoverPreview.style.left   = `${ac * (CELL + GAP)}px`;
+  hoverPreview.style.top    = `${ar * (CELL + GAP)}px`;
+  hoverPreview.style.width  = `${W}px`;
+  hoverPreview.style.height = `${H}px`;
+  hoverPreview.style.background   = valid ? `${selColor}44` : 'rgba(255,60,60,0.22)';
+  hoverPreview.style.borderColor  = valid ? 'rgba(255,255,255,0.6)' : 'rgba(255,80,80,0.75)';
+  hoverPreview.style.display = 'block';
+}
+
+// ── Grid ───────────────────────────────────────────────────────────────────
+function applyGrid() {
+  state.cols = parseInt(document.getElementById('in-cols').value) || 6;
+  state.rows = parseInt(document.getElementById('in-rows').value) || 7;
+  renderGrid();
+  generateCode();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.style.gridTemplateColumns = `repeat(${state.cols}, ${CELL}px)`;
+  grid.style.gridTemplateRows    = `repeat(${state.rows}, ${CELL}px)`;
+  grid.innerHTML = '';
+
+  // Static cells (no individual event listeners)
+  for (let r = 0; r < state.rows; r++) {
+    for (let c = 0; c < state.cols; c++) {
+      const div = document.createElement('div');
+      div.className = 'gc';
+      grid.appendChild(div);
+    }
+  }
+
+  // Figure overlays — pointer-events:none so clicks fall through to grid
+  state.figures.forEach((fig) => {
+    const cells = SHAPES[fig.shape];
+    const maxC = Math.max(...cells.map(c => c[0]));
+    const maxR = Math.max(...cells.map(c => c[1]));
+    const W = maxC * (CELL + GAP) + CELL;
+    const H = maxR * (CELL + GAP) + CELL;
+    const ov = document.createElement('div');
+    ov.className = 'fov';
+    ov.style.cssText = `left:${fig.col*(CELL+GAP)}px;top:${fig.row*(CELL+GAP)}px;width:${W}px;height:${H}px;background:${fig.color};pointer-events:none`;
+    if (fig.axis) {
+      const ax = document.createElement('span');
+      ax.className = 'fax';
+      ax.textContent = fig.axis === 'x' ? '↔' : '↕';
+      ov.appendChild(ax);
+    }
+    grid.appendChild(ov);
+  });
+
+  // Wall bands — pointer-events:none
+  state.walls.forEach(w => {
+    const css = WALL_CSS[w.color] || '#888';
+    const cells = w.cells || 3;
+    const BAND = 6;
+    const band = document.createElement('div');
+    band.className = 'wband';
+    const horiz = w.dir === 'top' || w.dir === 'bottom';
+    if (horiz) {
+      const col = w.col !== undefined ? w.col : 0;
+      const len = cells * (CELL + GAP) - GAP;
+      band.style.cssText = `left:${col*(CELL+GAP)}px;width:${len}px;height:${BAND}px;background:${css};${w.dir==='top'?'top:-9px':'bottom:-9px'}`;
+      band.textContent = w.dir === 'top' ? '▲' : '▼';
+    } else {
+      const row = w.row !== undefined ? w.row : 0;
+      const len = cells * (CELL + GAP) - GAP;
+      band.style.cssText = `top:${row*(CELL+GAP)}px;height:${len}px;width:${BAND}px;background:${css};${w.dir==='left'?'left:-9px':'right:-9px'}`;
+      band.textContent = w.dir === 'left' ? '◀' : '▶';
+    }
+    grid.appendChild(band);
+  });
+
+  // Re-attach hover preview (was cleared by innerHTML='')
+  grid.appendChild(hoverPreview);
+  updateHoverPreview();
+
+  document.getElementById('fig-count').textContent = state.figures.length;
+}
+
+// ── Place / Remove ─────────────────────────────────────────────────────────
+function placeFigure(col, row) {
+  const { shape, cells, ac, ar } = getPlacementPos(col, row);
+  const occ = buildOccupied();
+  if (!cells.every(([dc, dr]) => !occ.has(`${ac + dc},${ar + dr}`))) return;
+  const fig = { shape, color: selColor, col: ac, row: ar };
+  if (selAxis) fig.axis = selAxis;
+  state.figures.push(fig);
+  renderGrid();
+  generateCode();
+}
+
+function removeFigure(fi) {
+  state.figures.splice(fi, 1);
+  renderGrid();
+  generateCode();
+}
+
+function clearFigures() {
+  if (!confirm('Удалить все фигуры?')) return;
+  state.figures = [];
+  renderGrid();
+  generateCode();
+}
+
+// ── Walls ──────────────────────────────────────────────────────────────────
+function addWall() {
+  const dir   = document.getElementById('w-dir').value;
+  const color = document.getElementById('w-color').value;
+  const start = parseInt(document.getElementById('w-start').value) || 0;
+  const cells = parseInt(document.getElementById('w-cells').value) || 3;
+  const wall  = { color, dir, cells };
+  if (dir === 'top' || dir === 'bottom') wall.col = start;
+  else wall.row = start;
+  state.walls.push(wall);
+  updateWallList();
+  renderGrid();
+  generateCode();
+}
+
+function removeWall(i) {
+  state.walls.splice(i, 1);
+  updateWallList();
+  renderGrid();
+  generateCode();
+}
+
+function updateWallList() {
+  const el = document.getElementById('wall-list');
+  el.innerHTML = '';
+  state.walls.forEach((w, i) => {
+    const pos = (w.dir==='top'||w.dir==='bottom') ? `col:${w.col}` : `row:${w.row}`;
+    const item = document.createElement('div');
+    item.className = 'wall-item';
+    item.innerHTML = `
+      <span class="wdot" style="background:${WALL_CSS[w.color]||'#888'}"></span>
+      <span>${w.color} ${w.dir} ${pos} ×${w.cells}</span>
+      <span class="wdel" onclick="removeWall(${i})">×</span>
+    `;
+    el.appendChild(item);
+  });
+}
+
+// ── Axis ───────────────────────────────────────────────────────────────────
+function setAxis(v) {
+  selAxis = v;
+  document.getElementById('ax-none').classList.toggle('active', v === null);
+  document.getElementById('ax-x').classList.toggle('active', v === 'x');
+  document.getElementById('ax-y').classList.toggle('active', v === 'y');
+}
+
+// ── Code generation ────────────────────────────────────────────────────────
+function generateCode() {
+  const num   = document.getElementById('level-num').value || 'N';
+  const ind   = '  ';
+  const walls = state.walls.map(w => {
+    const pos = (w.dir==='top'||w.dir==='bottom')
+      ? (w.col !== undefined ? `, col: ${w.col}` : '')
+      : (w.row !== undefined ? `, row: ${w.row}` : '');
+    return `${ind}  { color: '${w.color}', dir: '${w.dir}'${pos}, cells: ${w.cells} },`;
+  }).join('\n');
+
+  const figs = state.figures.map(f => {
+    const ax = f.axis ? `, axis: '${f.axis}'` : '';
+    return `${ind}  { shape: '${f.shape}', color: '${f.color}', col: ${f.col}, row: ${f.row}${ax} },`;
+  }).join('\n');
+
+  const code =
+`// ── Уровень ${num} ──────────────────────────────────────────────────
+LEVELS.push({
+  cols: ${state.cols}, rows: ${state.rows},
+  walls: [
+${walls}
+  ],
+  figures: [
+${figs}
+  ],
+});`;
+
+  document.getElementById('code-out').value = code;
+}
+
+document.getElementById('level-num').addEventListener('input', generateCode);
+
+function copyCode() {
+  const ta = document.getElementById('code-out');
+  ta.select();
+  document.execCommand('copy');
+  const ok = document.getElementById('copy-ok');
+  ok.style.display = 'inline';
+  setTimeout(() => { ok.style.display = 'none'; }, 1800);
+}
+
+function downloadLevel() {
+  const num  = document.getElementById('level-num').value || 'N';
+  const code = document.getElementById('code-out').value;
+  const blob = new Blob([code], { type: 'text/javascript' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `level${num}.js`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
