@@ -501,6 +501,40 @@ function attachDrag(fig) {
       });
       return w;
     }
+    function moveToward(targetCol, targetRow) {
+      var curCol = lastValidCol;
+      var curRow = lastValidRow;
+      var dCol = targetCol - curCol;
+      var dRow = targetRow - curRow;
+      if (!dCol && !dRow) return;
+
+      function stepAxis(axis) {
+        if (axis === 'x') {
+          if (targetCol === curCol) return;
+          var sx = targetCol > curCol ? 1 : -1;
+          while (curCol !== targetCol) {
+            var nx = curCol + sx;
+            if (!canPlace(fig, nx, curRow)) break;
+            curCol = nx;
+          }
+          return;
+        }
+        if (targetRow === curRow) return;
+        var sy = targetRow > curRow ? 1 : -1;
+        while (curRow !== targetRow) {
+          var ny = curRow + sy;
+          if (!canPlace(fig, curCol, ny)) break;
+          curRow = ny;
+        }
+      }
+
+      var firstAxis = Math.abs(dCol) >= Math.abs(dRow) ? 'x' : 'y';
+      var secondAxis = firstAxis === 'x' ? 'y' : 'x';
+      stepAxis(firstAxis);
+      stepAxis(secondAxis);
+      lastValidCol = curCol;
+      lastValidRow = curRow;
+    }
 
     var onMove = function(e) {
       if (e.cancelable) e.preventDefault();
@@ -533,10 +567,7 @@ function attachDrag(fig) {
       var clampedRow = Math.max(0, Math.min(ROWS - 1 - fig._maxR, row));
       if (fig._moveAxis === 'x') clampedRow = prevRow;
       if (fig._moveAxis === 'y') clampedCol = prevCol;
-      if (canPlace(fig, clampedCol, clampedRow)) {
-        lastValidCol = clampedCol;
-        lastValidRow = clampedRow;
-      }
+      moveToward(clampedCol, clampedRow);
       var p = cellPos(lastValidCol, lastValidRow);
       fig.style.left = p.x + 'px';
       fig.style.top  = p.y + 'px';
