@@ -12,8 +12,14 @@ var requiresStartLevelIndex = 6; // Level 7 (0-based)
 var startOverlayFadeMs = 300;
 var tutorialHandEl = document.getElementById('tutorial-hand');
 var levelTimerId = null;
-var levelTimerSeconds = 210;
-var defaultLevelTimeSeconds = 210;
+var levelTimerSeconds = 50;
+var defaultLevelTimeSeconds = 50;
+var outTimeOverlay = document.getElementById('out-time-overlay');
+var outTimeContinueBtn = document.getElementById('out-time-continue');
+var outTimeCloseBtn = document.getElementById('out-time-close');
+var outTimeFreeBtn = document.getElementById('out-time-free');
+var holdHint = document.getElementById('hold-hint');
+var outTimeActive = false;
 
 var tutorial = {
   levelIndex: 0,
@@ -129,6 +135,25 @@ function clearLevelTimer() {
   levelTimerId = null;
 }
 
+function setOutTimeOverlay(active) {
+  outTimeActive = active;
+  if (active) {
+    outTimeOverlay.style.display = 'flex';
+    outTimeOverlay.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(function() { outTimeOverlay.style.opacity = '1'; });
+    sceneEl.style.pointerEvents = 'none';
+    return;
+  }
+  outTimeOverlay.style.opacity = '0';
+  outTimeOverlay.classList.remove('preview-board');
+  setTimeout(function() {
+    if (outTimeActive) return;
+    outTimeOverlay.style.display = 'none';
+    outTimeOverlay.setAttribute('aria-hidden', 'true');
+  }, 220);
+  sceneEl.style.pointerEvents = '';
+}
+
 function formatTimer(seconds) {
   var safe = Math.max(0, seconds);
   var mm = Math.floor(safe / 60);
@@ -142,20 +167,33 @@ function renderTimer() {
 
 function restartCurrentLevel() {
   clearLevelTimer();
+  setOutTimeOverlay(false);
   transitionToLevel(currentLevel);
+}
+
+function runLevelTimer() {
+  clearLevelTimer();
+  levelTimerId = setInterval(function() {
+    levelTimerSeconds -= 1;
+    renderTimer();
+    if (levelTimerSeconds > 0) return;
+    clearLevelTimer();
+    setOutTimeOverlay(true);
+  }, 1000);
 }
 
 function startLevelTimer() {
   clearLevelTimer();
   levelTimerSeconds = defaultLevelTimeSeconds;
   renderTimer();
-  levelTimerId = setInterval(function() {
-    levelTimerSeconds -= 1;
-    renderTimer();
-    if (levelTimerSeconds > 0) return;
-    clearLevelTimer();
-    restartCurrentLevel();
-  }, 1000);
+  runLevelTimer();
+}
+
+function addBonusTime(seconds) {
+  levelTimerSeconds = Math.max(0, levelTimerSeconds + seconds);
+  renderTimer();
+  setOutTimeOverlay(false);
+  runLevelTimer();
 }
 
 window.onFigureCreated = function(fig) {
@@ -212,8 +250,10 @@ window.onLevelComplete = function() {
 };
 
 function loadLevel(idx) {
+  var cfg = LEVELS[idx] || {};
+  defaultLevelTimeSeconds = typeof cfg.time === 'number' ? Math.max(1, cfg.time) : 50;
   setupTutorialForLevel(idx);
-  initLevel(LEVELS[idx]);
+  initLevel(cfg);
   startLevelTimer();
   setStartGate(idx === requiresStartLevelIndex);
   if (tutorial.enabled) {
@@ -240,6 +280,7 @@ function fadeOut(cb) {
 
 function transitionToLevel(idx) {
   clearLevelTimer();
+  setOutTimeOverlay(false);
   fadeOut(function() {
     currentLevel = idx;
     loadLevel(currentLevel);
@@ -277,6 +318,29 @@ restartBtn.addEventListener('click', function() {
 });
 startBtn.addEventListener('click', function() {
   setStartGate(false);
+});
+outTimeContinueBtn.addEventListener('click', function() {
+  addBonusTime(20);
+});
+outTimeFreeBtn.addEventListener('click', function() {
+  addBonusTime(20);
+});
+outTimeCloseBtn.addEventListener('click', function() {
+  restartCurrentLevel();
+});
+
+holdHint.addEventListener('pointerdown', function() {
+  if (!outTimeActive) return;
+  outTimeOverlay.classList.add('preview-board');
+});
+holdHint.addEventListener('pointerup', function() {
+  outTimeOverlay.classList.remove('preview-board');
+});
+holdHint.addEventListener('pointerleave', function() {
+  outTimeOverlay.classList.remove('preview-board');
+});
+holdHint.addEventListener('pointercancel', function() {
+  outTimeOverlay.classList.remove('preview-board');
 });
 
 window.addEventListener('resize', function() {

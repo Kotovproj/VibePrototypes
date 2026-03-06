@@ -1,6 +1,7 @@
 // ── Уровень 1: два столбца 3×4 ────────────────────────────────────────
 LEVELS.push({
   cols: 6, rows: 7,
+  time: 50,
   walls: [
     { color: 'cyan',   dir: 'top'              },
     { color: 'purple', dir: 'bottom', col: 0   },

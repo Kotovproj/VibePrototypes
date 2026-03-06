@@ -1,6 +1,7 @@
 // ── Уровень 4: четыре стенки, три фигуры ──────────────────────────────
 LEVELS.push({
   cols: 6, rows: 7,
+  time: 50,
   walls: [
     { color: 'yellow', dir: 'top'              },  // центр col 1
     { color: 'orange', dir: 'left',  row: 1    },  // rows 1–3

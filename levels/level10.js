@@ -1,6 +1,7 @@
 // ── Уровень 10: по скриншоту ─────────────────────────────────────────
 LEVELS.push({
   cols: 6, rows: 6,
+  time: 50,
   walls: [
     { color: 'purple', dir: 'top',    col: 0, cells: 3 },
     { color: 'red',    dir: 'top',    col: 3, cells: 3 },

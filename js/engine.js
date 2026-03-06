@@ -547,8 +547,23 @@ function attachDrag(fig) {
 function scaleGame() {
   var frameW = BOARD_W + 2 * BORDER;
   var frameH = BOARD_H + 2 * BORDER;
-  var reservedTop = Math.min(126, window.innerHeight * 0.18);
-  var reservedBottom = Math.min(116, window.innerHeight * 0.17);
+  var topAnchors = ['hud-top', 'back-btn', 'level-nav'];
+  var topMax = 0;
+  topAnchors.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var rect = el.getBoundingClientRect();
+    if (!rect.height) return;
+    topMax = Math.max(topMax, rect.bottom);
+  });
+
+  var boosters = document.getElementById('boosters-bar');
+  var boostersRect = boosters ? boosters.getBoundingClientRect() : null;
+
+  var reservedTop = Math.max(8, Math.ceil(topMax) + 10);
+  var reservedBottom = boostersRect && boostersRect.height
+    ? Math.max(10, Math.ceil(window.innerHeight - boostersRect.top) + 10)
+    : Math.min(116, window.innerHeight * 0.17);
   var availW = window.innerWidth;
   var availH = Math.max(220, window.innerHeight - reservedTop - reservedBottom);
   gameScale = Math.min(
@@ -556,6 +571,7 @@ function scaleGame() {
     availH / frameH,
     1
   ) * 0.98;
+  frame.style.top = Math.round(reservedTop + availH / 2) + 'px';
   frame.style.transform = 'translate(-50%, -50%) scale(' + gameScale.toFixed(4) + ')';
 }
 

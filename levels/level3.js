@@ -9,6 +9,7 @@
 //   Row 5: .  .  Y  Y  Y
 LEVELS.push({
   cols: 5, rows: 6,
+  time: 50,
   walls: [
     { color: 'blue',   dir: 'top',    col: 0, cells: 2 },  // синяя   — сверху слева   (cols 0–1)
     { color: 'red',    dir: 'left',   row: 1, cells: 3 },  // красная — слева в центре  (rows 1–3)

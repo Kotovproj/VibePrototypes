@@ -1,6 +1,7 @@
 // ── Уровень 5: пять стенок, пять фигур ────────────────────────────────
 LEVELS.push({
   cols: 5, rows: 6,
+  time: 50,
   walls: [
     { color: 'purple', dir: 'top',    col: 0, cells: 2 },  // фиолетовая — cols 0–1
     { color: 'green',  dir: 'top',    col: 3, cells: 2 },  // зелёная    — cols 3–4

@@ -1,6 +1,7 @@
 // ── Уровень 8: скользящий пазл (6×9) ────────────────────────────────────
 LEVELS.push({
   cols: 6, rows: 9,
+  time: 50,
   walls: [
     { color: 'purple', dir: 'top',    col: 0, cells: 2 },  // cols 0–1
     { color: 'green',  dir: 'top',    col: 2, cells: 2 },  // cols 2–3

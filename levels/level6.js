@@ -1,6 +1,7 @@
 // ── Уровень 6: раскладка по схеме (6×6) ───────────────────────────────
 LEVELS.push({
   cols: 6, rows: 6,
+  time: 50,
   walls: [
     { color: 'purple', dir: 'top',    col: 0, cells: 3 },  // cols 0–2
     { color: 'red',    dir: 'top',    col: 3, cells: 3 },  // cols 3–5

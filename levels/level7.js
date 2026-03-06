@@ -1,6 +1,7 @@
 // ── Уровень 7: стрелочные оси движения (5×7) ─────────────────────────
 LEVELS.push({
   cols: 5, rows: 7,
+  time: 50,
   walls: [
     { color: 'pink',   dir: 'top',    col: 0, cells: 1 },
     { color: 'purple', dir: 'top',    col: 1, cells: 2 },

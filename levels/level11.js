@@ -1,6 +1,7 @@
 // ── Уровень 11: вертикальный стек планок ─────────────────────────────
 LEVELS.push({
   cols: 3, rows: 7,
+  time: 50,
   walls: [
     { color: 'pink',   dir: 'right', row: 1, cells: 1 },
     { color: 'blue',   dir: 'right', row: 2, cells: 1 },
