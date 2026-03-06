@@ -386,6 +386,35 @@ function attachDrag(fig) {
       }
       return { col: snapCol, row: snapRow };
     }
+    function findAutoSnapWall() {
+      var eligible = walls.filter(function(w) {
+        var snap = trySnapToWall(w);
+        return !!snap && canPlace(fig, snap.col, snap.row);
+      });
+      return pickBestWall(eligible);
+    }
+    function removeFigureThroughWall(wall) {
+      wall.style.transition = 'transform 0.15s, filter 0.15s';
+      wall.style.transform  = 'scale(1.18)';
+      wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px white)';
+      setTimeout(function() { wall.style.transform = ''; wall.style.filter = ''; }, 300);
+      var fr = fig.getBoundingClientRect();
+      spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._color);
+      fig.style.transition = 'transform 0.15s ease-out, opacity 0.15s ease-in, filter 0.1s';
+      fig.style.filter     = 'brightness(4) drop-shadow(0 0 28px ' + fig._color + ')';
+      fig.style.transform  = 'scale(1.15)';
+      fig.style.opacity    = '0';
+      setTimeout(function() {
+        fig.remove();
+        if (typeof window.onFigureRemoved === 'function') window.onFigureRemoved(fig);
+        figureCount--;
+        if (figureCount === 0) {
+          setTimeout(function() {
+            if (typeof window.onLevelComplete === 'function') window.onLevelComplete();
+          }, 500);
+        }
+      }, 180);
+    }
     function getNearWall(rawX, rawY) {
       var SNAP = CELL + GAP;
       var near = {
@@ -479,30 +508,16 @@ function attachDrag(fig) {
       if (fig._moveAxis === 'x') rawY = lockedRawY;
       if (fig._moveAxis === 'y') rawX = lockedRawX;
       var wall = hoveredWall(pointerX, pointerY);
+      var snapOnDrop = wall ? trySnapToWall(wall) : null;
+      var match = !!snapOnDrop && canPlace(fig, snapOnDrop.col, snapOnDrop.row);
+      if (!match && !wall) {
+        wall = findAutoSnapWall();
+        snapOnDrop = wall ? trySnapToWall(wall) : null;
+        match = !!snapOnDrop && canPlace(fig, snapOnDrop.col, snapOnDrop.row);
+      }
       if (wall) {
-        var snapOnDrop = trySnapToWall(wall);
-        var match = !!snapOnDrop && canPlace(fig, snapOnDrop.col, snapOnDrop.row);
         if (match) {
-          wall.style.transition = 'transform 0.15s, filter 0.15s';
-          wall.style.transform  = 'scale(1.18)';
-          wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px white)';
-          setTimeout(function() { wall.style.transform = ''; wall.style.filter = ''; }, 300);
-          var fr = fig.getBoundingClientRect();
-          spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._color);
-          fig.style.transition = 'transform 0.15s ease-out, opacity 0.15s ease-in, filter 0.1s';
-          fig.style.filter     = 'brightness(4) drop-shadow(0 0 28px ' + fig._color + ')';
-          fig.style.transform  = 'scale(1.15)';
-          fig.style.opacity    = '0';
-          setTimeout(function() {
-            fig.remove();
-            if (typeof window.onFigureRemoved === 'function') window.onFigureRemoved(fig);
-            figureCount--;
-            if (figureCount === 0) {
-              setTimeout(function() {
-                if (typeof window.onLevelComplete === 'function') window.onLevelComplete();
-              }, 500);
-            }
-          }, 180);
+          removeFigureThroughWall(wall);
         } else {
           placeFigure(fig, prevCol, prevRow, true);
           occupyCells(fig, fig._col, fig._row);
