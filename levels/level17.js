@@ -1,0 +1,30 @@
+// ── Уровень 17 ──────────────────────────────────────────────────
+LEVELS.push({
+  cols: 6, rows: 9,
+  time: 200,
+  walls: [
+    { color: 'green', dir: 'left', row: 0, cells: 3 },
+    { color: 'cyan', dir: 'left', row: 3, cells: 3 },
+    { color: 'purple', dir: 'left', row: 6, cells: 3 },
+    { color: 'green', dir: 'right', row: 0, cells: 3 },
+    { color: 'pink', dir: 'right', row: 3, cells: 3 },
+    { color: 'cyan', dir: 'right', row: 6, cells: 3 },
+    { color: 'yellow', dir: 'bottom', col: 0, cells: 3 },
+    { color: 'orange', dir: 'bottom', col: 3, cells: 3 },
+    { color: 'red', dir: 'top', col: 3, cells: 3 },
+    { color: 'yellow', dir: 'top', col: 0, cells: 3 },
+  ],
+  figures: [
+    { shape: '2x1', color: '#ffc107', col: 2, row: 0 },
+    { shape: '2x1', color: '#ff9800', col: 1, row: 7 },
+    { shape: 'fat_J', color: '#f44336', col: 3, row: 0, outlineColor: '#4caf50' },
+    { shape: 'T', color: '#29b6f6', col: 2, row: 3, outlineColor: '#ff5fa2' },
+    { shape: '1x2', color: '#f44336', col: 5, row: 3 },
+    { shape: '1x2', color: '#c84bdf', col: 0, row: 4 },
+    { shape: 'mini_L', color: '#c84bdf', col: 0, row: 7, outlineColor: '#dca717' },
+    { shape: '2x1', color: '#4caf50', col: 1, row: 6 },
+    { shape: 'mini_L', color: '#ff9800', col: 3, row: 7, outlineColor: '#ad43c2' },
+    { shape: 'S', color: '#29b6f6', col: 3, row: 5, outlineColor: '#ad43c2' },
+    { shape: 'mini_J', color: '#ff5fa2', col: 1, row: 4, outlineColor: '#289ed5' },
+  ],
+});

@@ -10,6 +10,16 @@ var occupied  = new Map();
 var walls     = [];
 var blockers  = [];
 var figureCount = 0;
+var WALL_HEX = {
+  green: '#4caf50',
+  cyan: '#29b6f6',
+  purple: '#c84bdf',
+  orange: '#ff9800',
+  blue: '#1e88e5',
+  yellow: '#ffc107',
+  red: '#f44336',
+  pink: '#ff5fa2',
+};
 
 // DOM refs
 var frame = document.getElementById('frame');
@@ -105,8 +115,19 @@ function buildFigurePath(ctx, cells) {
   });
 }
 
-function drawFigureCanvas(canvas, cells, color, W, H) {
+function drawFigureCanvas(canvas, cells, color, W, H, outlineColor) {
   var ctx = prepCanvas(canvas, W, H);
+  ctx.clearRect(0, 0, W, H);
+  if (outlineColor) {
+    buildFigurePath(ctx, cells);
+    ctx.save();
+    ctx.strokeStyle = outlineColor;
+    ctx.lineWidth = 10;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
   buildFigurePath(ctx, cells);
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
@@ -120,6 +141,29 @@ function drawFigureCanvas(canvas, cells, color, W, H) {
   hl.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = hl; ctx.fillRect(0, 0, W, H);
   ctx.restore();
+}
+
+function toColorKey(color) {
+  if (!color || typeof color !== 'string') return null;
+  return COLOR_KEY[color.toLowerCase()] || null;
+}
+
+function currentFigureColorKey(fig) {
+  return fig._outlineActive && fig._outlineColorKey
+    ? fig._outlineColorKey
+    : fig._coreColorKey;
+}
+
+function redrawFigureCanvas(fig) {
+  if (!fig || !fig._canvas) return;
+  drawFigureCanvas(
+    fig._canvas,
+    fig._cells,
+    fig._color,
+    fig._W,
+    fig._H,
+    fig._outlineActive ? fig._outlineColor : null
+  );
 }
 
 function drawBlockerCanvas(canvas, cells, W, H) {
@@ -196,8 +240,8 @@ function lightenHex(hex, amt) {
   return 'rgb('+Math.min(255,r+amt)+','+Math.min(255,g+amt)+','+Math.min(255,b+amt)+')';
 }
 
-function spawnParticles(cx, cy, color) {
-  var COUNT = 52;
+function spawnParticles(cx, cy, color, count) {
+  var COUNT = count || 52;
   var light = lightenHex(color, 80);
   var colors = [color, color, color, light, light, '#ffffff'];
   for (var i = 0; i < COUNT; i++) {
@@ -284,7 +328,7 @@ function addJelly(fig) {
   fig.classList.add('jelly');
   fig.addEventListener('animationend', function() { fig.classList.remove('jelly'); }, { once: true });
 }
-function createFigure(shapeName, color, startCol, startRow, moveAxis) {
+function createFigure(shapeName, color, startCol, startRow, moveAxis, outlineColor) {
   var cells = SHAPES[shapeName];
   if (!cells) return null;
   var maxC  = Math.max.apply(null, cells.map(function(c) { return c[0]; }));
@@ -299,10 +343,17 @@ function createFigure(shapeName, color, startCol, startRow, moveAxis) {
   fig._maxC     = maxC;
   fig._maxR     = maxR;
   fig._color    = color;
-  fig._colorKey = COLOR_KEY[color] || null;
+  fig._coreColorKey = toColorKey(color);
+  fig._outlineColor = outlineColor || null;
+  fig._outlineColorKey = toColorKey(outlineColor || null);
+  fig._outlineActive = !!fig._outlineColorKey;
+  fig._colorKey = currentFigureColorKey(fig);
   fig._moveAxis = moveAxis || null;
+  fig._W = W;
+  fig._H = H;
   var canvas = document.createElement('canvas');
-  drawFigureCanvas(canvas, cells, color, W, H);
+  fig._canvas = canvas;
+  redrawFigureCanvas(fig);
   fig.appendChild(canvas);
   if (fig._moveAxis === 'x' || fig._moveAxis === 'y') {
     var arrow = document.createElement('div');
@@ -387,7 +438,7 @@ function attachDrag(fig) {
       if (!candidates.length) return null;
       if (candidates.length === 1) return candidates[0];
       var matching = candidates.filter(function(w) {
-        return !!fig._colorKey && fig._colorKey === w._colorKey;
+        return !!currentFigureColorKey(fig) && currentFigureColorKey(fig) === w._colorKey;
       });
       var pool = matching.length ? matching : candidates;
       return pool.reduce(function(best, w) {
@@ -429,7 +480,8 @@ function attachDrag(fig) {
       }
     }
     function trySnapToWall(wall) {
-      if (!fig._colorKey || fig._colorKey !== wall._colorKey || !fitsThroughWall(wall)) return null;
+      var requiredColorKey = currentFigureColorKey(fig);
+      if (!requiredColorKey || requiredColorKey !== wall._colorKey || !fitsThroughWall(wall)) return null;
       if (!isAdjacentToWall(wall) || !alignedWithWall(wall)) return null;
       var snapCol, snapRow;
       if (wall._dir === 'top' || wall._dir === 'bottom') {
@@ -449,9 +501,10 @@ function attachDrag(fig) {
       return pickBestWall(eligible);
     }
     function removeFigureThroughWall(wall) {
+      var wallHex = WALL_HEX[wall._colorKey] || '#ffffff';
       wall.style.transition = 'transform 0.15s, filter 0.15s';
       wall.style.transform  = 'scale(1.18)';
-      wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px white)';
+      wall.style.filter     = 'brightness(2) drop-shadow(0 0 18px ' + wallHex + ')';
       setTimeout(function() { wall.style.transform = ''; wall.style.filter = ''; }, 300);
       var fr = fig.getBoundingClientRect();
       spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._color);
@@ -469,6 +522,28 @@ function attachDrag(fig) {
           }, 500);
         }
       }, 180);
+      return true;
+    }
+    function breakFigureOutlineThroughWall(wall) {
+      var wallHex = WALL_HEX[wall._colorKey] || '#ffffff';
+      wall.style.transition = 'transform 0.15s, filter 0.15s';
+      wall.style.transform  = 'scale(1.15)';
+      wall.style.filter     = 'brightness(1.8) drop-shadow(0 0 16px ' + wallHex + ')';
+      setTimeout(function() { wall.style.transform = ''; wall.style.filter = ''; }, 260);
+      var fr = fig.getBoundingClientRect();
+      spawnParticles(fr.left + fr.width * 0.5, fr.top + fr.height * 0.5, fig._outlineColor || wallHex, 26);
+      fig.classList.add('outline-break');
+      setTimeout(function() { fig.classList.remove('outline-break'); }, 320);
+      fig._outlineActive = false;
+      fig._colorKey = currentFigureColorKey(fig);
+      redrawFigureCanvas(fig);
+      return false;
+    }
+    function resolveWallMatch(wall) {
+      if (fig._outlineActive && fig._outlineColorKey && wall._colorKey === fig._outlineColorKey) {
+        return breakFigureOutlineThroughWall(wall);
+      }
+      return removeFigureThroughWall(wall);
     }
     function getNearWall(rawX, rawY) {
       var SNAP = CELL + GAP;
@@ -603,7 +678,11 @@ function attachDrag(fig) {
       }
       if (wall) {
         if (match) {
-          removeFigureThroughWall(wall);
+          placeFigure(fig, snapOnDrop.col, snapOnDrop.row, false);
+          if (!resolveWallMatch(wall)) {
+            occupyCells(fig, fig._col, fig._row);
+            addJelly(fig);
+          }
         } else {
           placeFigure(fig, prevCol, prevRow, true);
           occupyCells(fig, fig._col, fig._row);
@@ -684,7 +763,7 @@ function initLevel(cfg) {
 
   (cfg.walls || []).forEach(function(w) { makeWall(w.color, w.dir, w.col, w.row, w.cells); });
   (cfg.blocks || cfg.obstacles || []).forEach(function(b) { createBlocker(b.shape, b.col, b.row); });
-  (cfg.figures || []).forEach(function(f) { createFigure(f.shape, f.color, f.col, f.row, f.axis); });
+  (cfg.figures || []).forEach(function(f) { createFigure(f.shape, f.color, f.col, f.row, f.axis, f.outlineColor); });
 
   scaleGame();
 }

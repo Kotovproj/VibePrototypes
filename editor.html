@@ -30,6 +30,8 @@ label{font-size:11px;color:#888;display:block;margin-bottom:3px;margin-top:8px}
 label:first-of-type{margin-top:0}
 input[type=number],select{width:100%;background:#0f0f22;border:1px solid #2a2a50;color:#ddd;padding:5px 8px;border-radius:5px;font-size:12px;outline:none}
 input[type=number]:focus,select:focus{border-color:#e94560}
+.check-row{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11px;color:#9a9ab4}
+.check-row input{accent-color:#e94560}
 
 /* ── Buttons ── */
 .btn{width:100%;padding:7px;background:#1e1e40;border:1px solid #2a2a50;color:#ccc;border-radius:5px;cursor:pointer;font-size:12px;text-align:center;margin-top:6px;transition:background .15s}
@@ -240,6 +242,17 @@ input[type=number]:focus,select:focus{border-color:#e94560}
     <input type="text" id="color-hex" value="#c84bdf" style="flex:1;font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid #2a2a50;background:#0f0f22;color:#ddd">
   </div>
 
+  <div class="ph" style="margin-top:12px">Контур фигуры</div>
+  <label class="check-row">
+    <input type="checkbox" id="outline-enabled">
+    Включить второй цвет (сначала снять контур)
+  </label>
+  <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+    <span style="font-size:11px;color:#666">Hex:</span>
+    <input type="color" id="outline-custom" value="#4caf50" style="width:36px;height:24px;padding:1px;border-radius:4px;border:1px solid #2a2a50;background:#0f0f22;cursor:pointer">
+    <input type="text" id="outline-hex" value="#4caf50" style="flex:1;font-size:11px;padding:4px 6px;border-radius:4px;border:1px solid #2a2a50;background:#0f0f22;color:#ddd">
+  </div>
+
   <div class="ph" style="margin-top:12px">Ось движения</div>
   <div class="axis-row">
     <div class="ax-btn active" id="ax-none" onclick="setAxis(null)">Нет</div>
@@ -327,6 +340,8 @@ const PRESET_COLORS = [
 // ── State ──────────────────────────────────────────────────────────────────
 let state = { cols: 6, rows: 7, time: 50, walls: [], figures: [], blocks: [] };
 let selColor = '#c84bdf';
+let selOutlineColor = '#4caf50';
+let selOutlineEnabled = false;
 let selAxis  = null;
 let placeMode = 'figure';
 let hoverCol = -1, hoverRow = -1;
@@ -364,6 +379,12 @@ function syncColorInputs() {
   document.getElementById('color-hex').value = selColor;
 }
 
+function syncOutlineInputs() {
+  document.getElementById('outline-custom').value = selOutlineColor;
+  document.getElementById('outline-hex').value = selOutlineColor;
+  document.getElementById('outline-enabled').checked = selOutlineEnabled;
+}
+
 function refreshDots() {
   document.querySelectorAll('.cdot').forEach((d,i) => {
     d.classList.toggle('sel', PRESET_COLORS[i] === selColor);
@@ -381,6 +402,22 @@ document.getElementById('color-hex').addEventListener('change', function() {
     selColor = this.value.toLowerCase();
     document.getElementById('color-custom').value = selColor;
     refreshDots();
+    renderGrid();
+  }
+});
+document.getElementById('outline-enabled').addEventListener('change', function() {
+  selOutlineEnabled = !!this.checked;
+  renderGrid();
+});
+document.getElementById('outline-custom').addEventListener('input', function() {
+  selOutlineColor = this.value.toLowerCase();
+  document.getElementById('outline-hex').value = selOutlineColor;
+  renderGrid();
+});
+document.getElementById('outline-hex').addEventListener('change', function() {
+  if (/^#[0-9a-fA-F]{6}$/.test(this.value)) {
+    selOutlineColor = this.value.toLowerCase();
+    document.getElementById('outline-custom').value = selOutlineColor;
     renderGrid();
   }
 });
@@ -624,6 +661,19 @@ function getPlacementPos(shape, col, row) {
   };
 }
 
+function outlinePreviewFilter(color) {
+  return [
+    `drop-shadow(4px 0 0 ${color})`,
+    `drop-shadow(-4px 0 0 ${color})`,
+    `drop-shadow(0 4px 0 ${color})`,
+    `drop-shadow(0 -4px 0 ${color})`,
+    `drop-shadow(3px 3px 0 ${color})`,
+    `drop-shadow(-3px 3px 0 ${color})`,
+    `drop-shadow(3px -3px 0 ${color})`,
+    `drop-shadow(-3px -3px 0 ${color})`,
+  ].join(' ');
+}
+
 function updateHoverPreview() {
   const grid = document.getElementById('grid');
   if (!hoverPreview.parentNode) grid.appendChild(hoverPreview);
@@ -654,6 +704,9 @@ function updateHoverPreview() {
     d.style.top = `${dr * (CELL + GAP)}px`;
     d.style.background = valid ? okBg : badBg;
     d.style.borderColor = valid ? okBorder : badBorder;
+    if (placeMode === 'figure' && selOutlineEnabled) {
+      d.style.boxShadow = `0 0 0 3px ${selOutlineColor} inset, 0 0 10px ${selOutlineColor}66`;
+    }
     hoverPreview.appendChild(d);
   });
   hoverPreview.style.display = 'block';
@@ -713,6 +766,7 @@ function renderGrid() {
     const ov = document.createElement('div');
     ov.className = 'fov';
     ov.style.cssText = `left:${fig.col*(CELL+GAP)}px;top:${fig.row*(CELL+GAP)}px;width:${W}px;height:${H}px;pointer-events:none`;
+    if (fig.outlineColor) ov.style.filter = outlinePreviewFilter(fig.outlineColor);
     cells.forEach(([dc, dr]) => {
       const cell = document.createElement('div');
       cell.className = 'fov-cell';
@@ -767,6 +821,7 @@ function placeFigure(col, row) {
   const maps = buildOccupiedMaps();
   if (!cells.every(([dc, dr]) => !maps.occupied.has(`${ac + dc},${ar + dr}`))) return;
   const fig = { shape, color: selColor, col: ac, row: ar };
+  if (selOutlineEnabled) fig.outlineColor = selOutlineColor;
   if (selAxis) fig.axis = selAxis;
   state.figures.push(fig);
   renderGrid();
@@ -895,7 +950,8 @@ function generateCode() {
 
   const figs = state.figures.map(f => {
     const ax = f.axis ? `, axis: '${f.axis}'` : '';
-    return `${ind}  { shape: '${f.shape}', color: '${f.color}', col: ${f.col}, row: ${f.row}${ax} },`;
+    const outline = f.outlineColor ? `, outlineColor: '${f.outlineColor}'` : '';
+    return `${ind}  { shape: '${f.shape}', color: '${f.color}', col: ${f.col}, row: ${f.row}${outline}${ax} },`;
   }).join('\n');
 
   const blocks = state.blocks.map(b =>
@@ -943,6 +999,7 @@ function downloadLevel() {
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
+syncOutlineInputs();
 boot();
 </script>
 </body>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Puzzle Mockup Preview</title>
+  <link rel="stylesheet" href="css/mockup-preview.css">
+</head>
+<body>
+  <div class="bg-noise" aria-hidden="true"></div>
+  <div id="hud-top">
+    <button class="icon-btn" id="back-btn" aria-label="Back">←</button>
+    <div id="hud-main">
+      <div id="level-badge" aria-live="polite">
+        <span class="badge-caption">Level</span>
+        <span class="badge-value" id="level-value">12</span>
+      </div>
+      <div id="time-panel" aria-live="polite">
+        <div id="time-caption">Time</div>
+        <div id="time-value">01:48</div>
+      </div>
+      <button class="icon-btn icon-btn-restart" id="restart-btn" aria-label="Restart">↻</button>
+    </div>
+  </div>
+
+  <div id="frame">
+    <div id="scene">
+      <div id="board">
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+        <div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div><div class="board-cell"></div>
+      </div>
+      <div class="piece p1"></div>
+      <div class="piece p2"></div>
+      <div class="piece p3"></div>
+      <div class="piece p4"></div>
+    </div>
+  </div>
+
+  <div id="boosters-bar" aria-label="Boosters">
+    <button class="booster-btn"><span class="booster-icon">🧲</span><span class="booster-lvl">1</span></button>
+    <button class="booster-btn"><span class="booster-icon">⏰</span><span class="booster-lvl">2</span></button>
+    <button class="booster-btn"><span class="booster-icon">🚀</span><span class="booster-lvl">3</span></button>
+  </div>
+</body>
+</html>

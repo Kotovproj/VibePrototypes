@@ -230,6 +230,14 @@ body {
               top  0.2s cubic-bezier(.25,.8,.25,1),
               transform 0.12s ease-out, filter 0.12s ease-out;
 }
+@keyframes outlineBreak {
+  0% { transform: scale(1.04); }
+  45% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+.figure.outline-break {
+  animation: outlineBreak 0.3s ease-out;
+}
 .figure canvas {
   position: absolute;
   top: 0; left: 0;
