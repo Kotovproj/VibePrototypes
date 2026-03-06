@@ -8,6 +8,7 @@ var COLS, ROWS, BOARD_W, BOARD_H;
 var gameScale = 1;
 var occupied  = new Map();
 var walls     = [];
+var blockers  = [];
 var figureCount = 0;
 
 // DOM refs
@@ -118,6 +119,26 @@ function drawFigureCanvas(canvas, cells, color, W, H) {
   hl.addColorStop(0, 'rgba(255,255,255,0.32)');
   hl.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = hl; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawBlockerCanvas(canvas, cells, W, H) {
+  var ctx = prepCanvas(canvas, W, H);
+  buildFigurePath(ctx, cells);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.32)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = '#6c7888';
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-atop';
+  var hl = ctx.createLinearGradient(0, 0, 0, H * 0.42);
+  hl.addColorStop(0, 'rgba(255,255,255,0.22)');
+  hl.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hl;
+  ctx.fillRect(0, 0, W, H);
   ctx.restore();
 }
 
@@ -265,6 +286,7 @@ function addJelly(fig) {
 }
 function createFigure(shapeName, color, startCol, startRow, moveAxis) {
   var cells = SHAPES[shapeName];
+  if (!cells) return null;
   var maxC  = Math.max.apply(null, cells.map(function(c) { return c[0]; }));
   var maxR  = Math.max.apply(null, cells.map(function(c) { return c[1]; }));
   var W = maxC * (CELL + GAP) + CELL;
@@ -290,12 +312,45 @@ function createFigure(shapeName, color, startCol, startRow, moveAxis) {
     fig.appendChild(arrow);
   }
   scene.appendChild(fig);
-  figureCount++;
   placeFigure(fig, startCol, startRow, false);
+  if (!canPlace(fig, fig._col, fig._row)) {
+    fig.remove();
+    return null;
+  }
   occupyCells(fig, fig._col, fig._row);
+  figureCount++;
   attachDrag(fig);
   if (typeof window.onFigureCreated === 'function') window.onFigureCreated(fig);
   return fig;
+}
+
+function createBlocker(shapeName, startCol, startRow) {
+  var cells = SHAPES[shapeName];
+  if (!cells) return null;
+  var maxC  = Math.max.apply(null, cells.map(function(c) { return c[0]; }));
+  var maxR  = Math.max.apply(null, cells.map(function(c) { return c[1]; }));
+  var col = Math.max(0, Math.min(COLS - 1 - maxC, startCol));
+  var row = Math.max(0, Math.min(ROWS - 1 - maxR, startRow));
+  var canSet = cells.every(function(cell) { return !occupied.has((col + cell[0]) + ',' + (row + cell[1])); });
+  if (!canSet) return null;
+  var W = maxC * (CELL + GAP) + CELL;
+  var H = maxR * (CELL + GAP) + CELL;
+  var el = document.createElement('div');
+  el.className = 'blocker';
+  el.style.width = W + 'px';
+  el.style.height = H + 'px';
+  var p = cellPos(col, row);
+  el.style.left = p.x + 'px';
+  el.style.top = p.y + 'px';
+  var canvas = document.createElement('canvas');
+  drawBlockerCanvas(canvas, cells, W, H);
+  el.appendChild(canvas);
+  scene.appendChild(el);
+  cells.forEach(function(cell) {
+    occupied.set((col + cell[0]) + ',' + (row + cell[1]), el);
+  });
+  blockers.push(el);
+  return el;
 }
 
 // ── Drag & drop ───────────────────────────────────────────────────────────────
@@ -590,12 +645,15 @@ function initLevel(cfg) {
 
   walls.forEach(function(w) { w.remove(); });
   walls.length = 0;
+  blockers.forEach(function(b) { b.remove(); });
+  blockers.length = 0;
   document.querySelectorAll('.figure').forEach(function(f) { f.remove(); });
   occupied.clear();
   figureCount = 0;
 
-  cfg.walls.forEach(function(w) { makeWall(w.color, w.dir, w.col, w.row, w.cells); });
-  cfg.figures.forEach(function(f) { createFigure(f.shape, f.color, f.col, f.row, f.axis); });
+  (cfg.walls || []).forEach(function(w) { makeWall(w.color, w.dir, w.col, w.row, w.cells); });
+  (cfg.blocks || cfg.obstacles || []).forEach(function(b) { createBlocker(b.shape, b.col, b.row); });
+  (cfg.figures || []).forEach(function(f) { createFigure(f.shape, f.color, f.col, f.row, f.axis); });
 
   scaleGame();
 }

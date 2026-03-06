@@ -235,6 +235,21 @@ body {
   top: 0; left: 0;
   pointer-events: none;
 }
+
+/* ── внутренние серые блоки (неперетаскиваемые) ─────────────────────── */
+.blocker {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+  user-select: none;
+}
+.blocker canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  filter: saturate(0.2) brightness(0.9);
+}
 .figure-arrow {
   position: absolute;
   inset: 0;

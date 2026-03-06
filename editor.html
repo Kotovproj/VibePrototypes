@@ -65,9 +65,13 @@ input[type=number]:focus,select:focus{border-color:#e94560}
 .gc.hv-bad{background:rgba(255,60,60,0.18)}
 
 /* figure overlay on grid */
-.fov{position:absolute;border-radius:7px;z-index:2;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.88;transition:filter .12s}
-.fov:hover{filter:brightness(1.35);z-index:5}
-.fov .fax{font-size:clamp(14px,40%,22px);opacity:.7;pointer-events:none}
+.fov{position:absolute;z-index:2;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.92;transition:filter .12s}
+.fov:hover{filter:brightness(1.2);z-index:5}
+.fov-cell{position:absolute;width:52px;height:52px;border-radius:7px;box-shadow:inset 0 2px 0 rgba(255,255,255,.18),inset 0 -2px 0 rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.24)}
+.fov .fax{font-size:clamp(14px,40%,22px);opacity:.78;pointer-events:none;z-index:2;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+.bov{position:absolute;z-index:1;pointer-events:none}
+.bov-cell{position:absolute;width:52px;height:52px;border-radius:7px;background:linear-gradient(180deg,#7a8594 0%,#606b7b 100%);box-shadow:inset 0 2px 0 rgba(255,255,255,.2),inset 0 -2px 0 rgba(0,0,0,.25),0 2px 6px rgba(0,0,0,.28)}
+.hv-cell{position:absolute;width:52px;height:52px;border-radius:7px;border:2px dashed rgba(255,255,255,.55);box-sizing:border-box}
 
 /* wall indicator bands on grid */
 .wband{position:absolute;z-index:3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#000;pointer-events:none;border-radius:3px;opacity:.85}
@@ -87,7 +91,7 @@ input[type=number]:focus,select:focus{border-color:#e94560}
 
 <header>
   <h1>⬛ Level Builder</h1>
-  <span class="sub">Наводи → превью | Клик → разместить | ПКМ на фигуре → удалить</span>
+  <span class="sub">Наводи → превью | Клик → разместить | ПКМ по клетке → удалить фигуру/блок</span>
 </header>
 
 <div class="body">
@@ -95,12 +99,24 @@ input[type=number]:focus,select:focus{border-color:#e94560}
 <!-- ══ LEFT PANEL ══ -->
 <div class="panel">
 
+  <div class="ph">Загрузка / выбор</div>
+  <select id="preset-levels"></select>
+  <button class="btn" onclick="refreshPresetLevels()">Обновить список уровней</button>
+  <button class="btn" onclick="loadSelectedPresetLevel()">Загрузить выбранный уровень</button>
+  <label>Загрузить .js / .json
+    <input type="file" id="level-file" accept=".js,.json" style="margin-top:6px;width:100%;font-size:11px;color:#888">
+  </label>
+
+  <hr>
   <div class="ph">Сетка</div>
   <label>Колонны (cols)
     <input type="number" id="in-cols" value="6" min="2" max="12">
   </label>
   <label>Строки (rows)
     <input type="number" id="in-rows" value="7" min="2" max="16">
+  </label>
+  <label>Время (сек)
+    <input type="number" id="in-time" value="50" min="1" max="999">
   </label>
   <button class="btn" onclick="applyGrid()">Применить</button>
 
@@ -141,6 +157,11 @@ input[type=number]:focus,select:focus{border-color:#e94560}
   <div class="ph">Фигуры (<span id="fig-count">0</span>)</div>
   <button class="btn danger" onclick="clearFigures()">Очистить фигуры</button>
 
+  <hr>
+  <div class="ph">Серые блоки (<span id="block-count">0</span>)</div>
+  <button class="btn danger" onclick="clearBlocks()">Очистить блоки</button>
+  <div id="block-list"></div>
+
 </div>
 
 <!-- ══ CENTER ══ -->
@@ -153,8 +174,40 @@ input[type=number]:focus,select:focus{border-color:#e94560}
 <!-- ══ RIGHT PANEL ══ -->
 <div class="panel right">
 
+  <div class="ph">Режим</div>
+  <div class="axis-row">
+    <div class="ax-btn active" id="mode-figure" onclick="setPlaceMode('figure')">Фигура</div>
+    <div class="ax-btn" id="mode-block" onclick="setPlaceMode('block')">Блок</div>
+  </div>
+
   <div class="ph">Форма</div>
   <select id="sel-shape" onchange="renderGrid()">
+    <option value="1x1">1×1</option>
+    <option value="2x1">2×1 horizontal</option>
+    <option value="3x1">3×1 horizontal</option>
+    <option value="1x2">1×2 vertical</option>
+    <option value="1x3">1×3 vertical</option>
+    <option value="1x4">1×4 vertical</option>
+    <option value="2x2">2×2 square</option>
+    <option value="2x3">2×3</option>
+    <option value="2x4">2×4</option>
+    <option value="2x5">2×5</option>
+    <option value="3x2">3×2</option>
+    <option value="3x3">3×3 square</option>
+    <option value="3x4">3×4 big</option>
+    <option value="L">L</option>
+    <option value="J">J</option>
+    <option value="T">T</option>
+    <option value="S">S</option>
+    <option value="Z">Z</option>
+    <option value="fat_T">fat T</option>
+    <option value="fat_J">fat J</option>
+    <option value="mini_L">mini L</option>
+    <option value="mini_J">mini J</option>
+  </select>
+
+  <div class="ph" style="margin-top:12px">Форма блока</div>
+  <select id="sel-block-shape" onchange="renderGrid()">
     <option value="1x1">1×1</option>
     <option value="2x1">2×1 horizontal</option>
     <option value="3x1">3×1 horizontal</option>
@@ -272,10 +325,12 @@ const PRESET_COLORS = [
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────
-let state = { cols: 6, rows: 7, walls: [], figures: [] };
+let state = { cols: 6, rows: 7, time: 50, walls: [], figures: [], blocks: [] };
 let selColor = '#c84bdf';
 let selAxis  = null;
+let placeMode = 'figure';
 let hoverCol = -1, hoverRow = -1;
+let presetLevels = [];
 
 const CELL = 52, GAP = 5;
 
@@ -285,6 +340,9 @@ function boot() {
   buildColorKeyMap();
   applyGrid();
   updateWallList();
+  updateBlockList();
+  refreshPresetLevels();
+  document.getElementById('level-file').addEventListener('change', onLevelFilePicked);
   generateCode();
 }
 
@@ -339,9 +397,156 @@ function buildColorKeyMap() {
   ).join('');
 }
 
+function cloneJson(v) {
+  return JSON.parse(JSON.stringify(v));
+}
+
+function parseLevelObjectsFromJs(source) {
+  const out = [];
+  let pos = 0;
+  while (true) {
+    const pushAt = source.indexOf('LEVELS.push', pos);
+    if (pushAt === -1) break;
+    const openAt = source.indexOf('(', pushAt);
+    if (openAt === -1) break;
+    let i = openAt;
+    let depth = 0;
+    let quote = '';
+    let esc = false;
+    while (i < source.length) {
+      const ch = source[i];
+      if (quote) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === quote) quote = '';
+      } else {
+        if (ch === '"' || ch === "'" || ch === '`') quote = ch;
+        else if (ch === '(') depth++;
+        else if (ch === ')') {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      i++;
+    }
+    if (depth === 0) {
+      const expr = source.slice(openAt + 1, i).trim();
+      try {
+        const cfg = Function('return (' + expr + ');')();
+        if (cfg && typeof cfg === 'object') out.push(cfg);
+      } catch (_) {}
+    }
+    pos = i + 1;
+  }
+  return out;
+}
+
+function parseLevelsFromText(text, filename) {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed[0] === '{' || trimmed[0] === '[') {
+    try {
+      const data = JSON.parse(trimmed);
+      if (Array.isArray(data)) return data.filter(v => v && typeof v === 'object');
+      if (data && typeof data === 'object') return [data];
+    } catch (_) {}
+  }
+  const jsLevels = parseLevelObjectsFromJs(text);
+  if (jsLevels.length) return jsLevels;
+  throw new Error('Не удалось распарсить уровень из ' + (filename || 'файла'));
+}
+
+function applyLoadedLevel(cfg, levelNumber) {
+  state.cols = parseInt(cfg.cols, 10) || 6;
+  state.rows = parseInt(cfg.rows, 10) || 7;
+  state.time = Math.max(1, parseInt(cfg.time, 10) || 50);
+  state.walls = cloneJson(cfg.walls || []);
+  state.figures = cloneJson(cfg.figures || []);
+  state.blocks = cloneJson(cfg.blocks || cfg.obstacles || []);
+
+  document.getElementById('in-cols').value = state.cols;
+  document.getElementById('in-rows').value = state.rows;
+  document.getElementById('in-time').value = state.time;
+  if (levelNumber) document.getElementById('level-num').value = levelNumber;
+
+  updateWallList();
+  updateBlockList();
+  renderGrid();
+  generateCode();
+}
+
+async function refreshPresetLevels() {
+  const sel = document.getElementById('preset-levels');
+  sel.innerHTML = '<option>Загрузка списка…</option>';
+  presetLevels = [];
+  try {
+    const indexRes = await fetch('index.html');
+    const indexText = await indexRes.text();
+    const all = [...indexText.matchAll(/levels\/level(\d+)\.js/g)];
+    const unique = new Map();
+    all.forEach(m => unique.set(m[1], 'levels/level' + m[1] + '.js'));
+    const ordered = [...unique.entries()].sort((a, b) => parseInt(a[0], 10) - parseInt(b[0], 10));
+    for (const [num, path] of ordered) {
+      const res = await fetch(path);
+      const text = await res.text();
+      const levels = parseLevelsFromText(text, path);
+      levels.forEach((cfg, idx) => {
+        presetLevels.push({
+          num: parseInt(num, 10),
+          path,
+          cfg,
+          label: idx === 0 ? ('Level ' + num) : ('Level ' + num + ' [' + (idx + 1) + ']')
+        });
+      });
+    }
+    sel.innerHTML = '';
+    if (!presetLevels.length) {
+      sel.innerHTML = '<option>Нет доступных уровней</option>';
+      return;
+    }
+    presetLevels.forEach((it, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = it.label;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    sel.innerHTML = '<option>Ошибка чтения уровней</option>';
+    console.error(e);
+  }
+}
+
+function loadSelectedPresetLevel() {
+  const sel = document.getElementById('preset-levels');
+  const idx = parseInt(sel.value, 10);
+  if (!Number.isFinite(idx) || !presetLevels[idx]) return;
+  const item = presetLevels[idx];
+  applyLoadedLevel(item.cfg, item.num);
+}
+
+async function onLevelFilePicked(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const levels = parseLevelsFromText(text, file.name);
+    if (!levels.length) throw new Error('Файл не содержит уровней');
+    const m = file.name.match(/level(\d+)/i);
+    const num = m ? parseInt(m[1], 10) : null;
+    applyLoadedLevel(levels[0], num);
+    if (levels.length > 1) {
+      alert('В файле несколько уровней. Загружен первый.');
+    }
+  } catch (err) {
+    alert(err.message || 'Ошибка чтения файла уровня');
+  } finally {
+    e.target.value = '';
+  }
+}
+
 // ── Hover preview element (persistent, survives grid rebuilds) ─────────────
 const hoverPreview = document.createElement('div');
-hoverPreview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;display:none;border-radius:7px;border:2px dashed rgba(255,255,255,0.55);transition:none;box-sizing:border-box';
+hoverPreview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;display:none;transition:none';
 
 // ── Grid-level events (set up once) ────────────────────────────────────────
 (function setupGridEvents() {
@@ -366,7 +571,8 @@ hoverPreview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;d
 
   grid.addEventListener('click', function() {
     if (hoverCol < 0 || hoverRow < 0) return;
-    placeFigure(hoverCol, hoverRow);
+    if (placeMode === 'block') placeBlock(hoverCol, hoverRow);
+    else placeFigure(hoverCol, hoverRow);
   });
 
   grid.addEventListener('contextmenu', function(e) {
@@ -376,25 +582,37 @@ hoverPreview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;d
     const y = e.clientY - rect.top;
     const c = Math.floor(x / (CELL + GAP));
     const r = Math.floor(y / (CELL + GAP));
-    const occ = buildOccupied();
-    const fi = occ.get(`${c},${r}`);
-    if (fi !== undefined) removeFigure(fi);
+    const maps = buildOccupiedMaps();
+    const fi = maps.figures.get(`${c},${r}`);
+    if (fi !== undefined) { removeFigure(fi); return; }
+    const bi = maps.blocks.get(`${c},${r}`);
+    if (bi !== undefined) removeBlock(bi);
   });
 })();
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-function buildOccupied() {
-  const occ = new Map();
+function buildOccupiedMaps() {
+  const figures = new Map();
+  const blocks = new Map();
+  const occupied = new Set();
   state.figures.forEach((fig, fi) => {
     SHAPES[fig.shape].forEach(([dc, dr]) => {
-      occ.set(`${fig.col + dc},${fig.row + dr}`, fi);
+      const key = `${fig.col + dc},${fig.row + dr}`;
+      figures.set(key, fi);
+      occupied.add(key);
     });
   });
-  return occ;
+  state.blocks.forEach((b, bi) => {
+    SHAPES[b.shape].forEach(([dc, dr]) => {
+      const key = `${b.col + dc},${b.row + dr}`;
+      blocks.set(key, bi);
+      occupied.add(key);
+    });
+  });
+  return { figures, blocks, occupied };
 }
 
-function getPlacementPos(col, row) {
-  const shape = document.getElementById('sel-shape').value;
+function getPlacementPos(shape, col, row) {
   const cells = SHAPES[shape];
   const maxC = Math.max(...cells.map(c => c[0]));
   const maxR = Math.max(...cells.map(c => c[1]));
@@ -411,18 +629,33 @@ function updateHoverPreview() {
   if (!hoverPreview.parentNode) grid.appendChild(hoverPreview);
   if (hoverCol < 0 || hoverRow < 0) { hoverPreview.style.display = 'none'; return; }
 
-  const { shape, cells, ac, ar, maxC, maxR } = getPlacementPos(hoverCol, hoverRow);
+  const shape = placeMode === 'block'
+    ? document.getElementById('sel-block-shape').value
+    : document.getElementById('sel-shape').value;
+  const { cells, ac, ar, maxC, maxR } = getPlacementPos(shape, hoverCol, hoverRow);
   const W = maxC * (CELL + GAP) + CELL;
   const H = maxR * (CELL + GAP) + CELL;
-  const occ = buildOccupied();
-  const valid = cells.every(([dc, dr]) => !occ.has(`${ac + dc},${ar + dr}`));
+  const maps = buildOccupiedMaps();
+  const valid = cells.every(([dc, dr]) => !maps.occupied.has(`${ac + dc},${ar + dr}`));
 
   hoverPreview.style.left   = `${ac * (CELL + GAP)}px`;
   hoverPreview.style.top    = `${ar * (CELL + GAP)}px`;
   hoverPreview.style.width  = `${W}px`;
   hoverPreview.style.height = `${H}px`;
-  hoverPreview.style.background   = valid ? `${selColor}44` : 'rgba(255,60,60,0.22)';
-  hoverPreview.style.borderColor  = valid ? 'rgba(255,255,255,0.6)' : 'rgba(255,80,80,0.75)';
+  hoverPreview.innerHTML = '';
+  const okBg = placeMode === 'block' ? 'rgba(120,130,145,0.45)' : `${selColor}55`;
+  const badBg = 'rgba(255,60,60,0.24)';
+  const okBorder = 'rgba(255,255,255,0.58)';
+  const badBorder = 'rgba(255,80,80,0.8)';
+  cells.forEach(([dc, dr]) => {
+    const d = document.createElement('div');
+    d.className = 'hv-cell';
+    d.style.left = `${dc * (CELL + GAP)}px`;
+    d.style.top = `${dr * (CELL + GAP)}px`;
+    d.style.background = valid ? okBg : badBg;
+    d.style.borderColor = valid ? okBorder : badBorder;
+    hoverPreview.appendChild(d);
+  });
   hoverPreview.style.display = 'block';
 }
 
@@ -430,6 +663,7 @@ function updateHoverPreview() {
 function applyGrid() {
   state.cols = parseInt(document.getElementById('in-cols').value) || 6;
   state.rows = parseInt(document.getElementById('in-rows').value) || 7;
+  state.time = Math.max(1, parseInt(document.getElementById('in-time').value, 10) || 50);
   renderGrid();
   generateCode();
 }
@@ -449,6 +683,26 @@ function renderGrid() {
     }
   }
 
+  // Static gray blockers
+  state.blocks.forEach((b) => {
+    const cells = SHAPES[b.shape];
+    const maxC = Math.max(...cells.map(c => c[0]));
+    const maxR = Math.max(...cells.map(c => c[1]));
+    const W = maxC * (CELL + GAP) + CELL;
+    const H = maxR * (CELL + GAP) + CELL;
+    const ov = document.createElement('div');
+    ov.className = 'bov';
+    ov.style.cssText = `left:${b.col*(CELL+GAP)}px;top:${b.row*(CELL+GAP)}px;width:${W}px;height:${H}px`;
+    cells.forEach(([dc, dr]) => {
+      const cell = document.createElement('div');
+      cell.className = 'bov-cell';
+      cell.style.left = `${dc*(CELL+GAP)}px`;
+      cell.style.top = `${dr*(CELL+GAP)}px`;
+      ov.appendChild(cell);
+    });
+    grid.appendChild(ov);
+  });
+
   // Figure overlays — pointer-events:none so clicks fall through to grid
   state.figures.forEach((fig) => {
     const cells = SHAPES[fig.shape];
@@ -458,7 +712,15 @@ function renderGrid() {
     const H = maxR * (CELL + GAP) + CELL;
     const ov = document.createElement('div');
     ov.className = 'fov';
-    ov.style.cssText = `left:${fig.col*(CELL+GAP)}px;top:${fig.row*(CELL+GAP)}px;width:${W}px;height:${H}px;background:${fig.color};pointer-events:none`;
+    ov.style.cssText = `left:${fig.col*(CELL+GAP)}px;top:${fig.row*(CELL+GAP)}px;width:${W}px;height:${H}px;pointer-events:none`;
+    cells.forEach(([dc, dr]) => {
+      const cell = document.createElement('div');
+      cell.className = 'fov-cell';
+      cell.style.left = `${dc*(CELL+GAP)}px`;
+      cell.style.top = `${dr*(CELL+GAP)}px`;
+      cell.style.background = fig.color;
+      ov.appendChild(cell);
+    });
     if (fig.axis) {
       const ax = document.createElement('span');
       ax.className = 'fax';
@@ -495,16 +757,29 @@ function renderGrid() {
   updateHoverPreview();
 
   document.getElementById('fig-count').textContent = state.figures.length;
+  document.getElementById('block-count').textContent = state.blocks.length;
 }
 
 // ── Place / Remove ─────────────────────────────────────────────────────────
 function placeFigure(col, row) {
-  const { shape, cells, ac, ar } = getPlacementPos(col, row);
-  const occ = buildOccupied();
-  if (!cells.every(([dc, dr]) => !occ.has(`${ac + dc},${ar + dr}`))) return;
+  const shape = document.getElementById('sel-shape').value;
+  const { cells, ac, ar } = getPlacementPos(shape, col, row);
+  const maps = buildOccupiedMaps();
+  if (!cells.every(([dc, dr]) => !maps.occupied.has(`${ac + dc},${ar + dr}`))) return;
   const fig = { shape, color: selColor, col: ac, row: ar };
   if (selAxis) fig.axis = selAxis;
   state.figures.push(fig);
+  renderGrid();
+  generateCode();
+}
+
+function placeBlock(col, row) {
+  const shape = document.getElementById('sel-block-shape').value;
+  const { cells, ac, ar } = getPlacementPos(shape, col, row);
+  const maps = buildOccupiedMaps();
+  if (!cells.every(([dc, dr]) => !maps.occupied.has(`${ac + dc},${ar + dr}`))) return;
+  state.blocks.push({ shape, col: ac, row: ar });
+  updateBlockList();
   renderGrid();
   generateCode();
 }
@@ -518,6 +793,21 @@ function removeFigure(fi) {
 function clearFigures() {
   if (!confirm('Удалить все фигуры?')) return;
   state.figures = [];
+  renderGrid();
+  generateCode();
+}
+
+function removeBlock(i) {
+  state.blocks.splice(i, 1);
+  updateBlockList();
+  renderGrid();
+  generateCode();
+}
+
+function clearBlocks() {
+  if (!confirm('Удалить все блоки?')) return;
+  state.blocks = [];
+  updateBlockList();
   renderGrid();
   generateCode();
 }
@@ -560,6 +850,21 @@ function updateWallList() {
   });
 }
 
+function updateBlockList() {
+  const el = document.getElementById('block-list');
+  el.innerHTML = '';
+  state.blocks.forEach((b, i) => {
+    const item = document.createElement('div');
+    item.className = 'wall-item';
+    item.innerHTML = `
+      <span class="wdot" style="background:#6c7888"></span>
+      <span>${b.shape} col:${b.col} row:${b.row}</span>
+      <span class="wdel" onclick="removeBlock(${i})">×</span>
+    `;
+    el.appendChild(item);
+  });
+}
+
 // ── Axis ───────────────────────────────────────────────────────────────────
 function setAxis(v) {
   selAxis = v;
@@ -568,10 +873,19 @@ function setAxis(v) {
   document.getElementById('ax-y').classList.toggle('active', v === 'y');
 }
 
+function setPlaceMode(mode) {
+  placeMode = mode === 'block' ? 'block' : 'figure';
+  document.getElementById('mode-figure').classList.toggle('active', placeMode === 'figure');
+  document.getElementById('mode-block').classList.toggle('active', placeMode === 'block');
+  updateHoverPreview();
+}
+
 // ── Code generation ────────────────────────────────────────────────────────
 function generateCode() {
   const num   = document.getElementById('level-num').value || 'N';
   const ind   = '  ';
+  const time  = Math.max(1, parseInt(document.getElementById('in-time').value, 10) || state.time || 50);
+  state.time = time;
   const walls = state.walls.map(w => {
     const pos = (w.dir==='top'||w.dir==='bottom')
       ? (w.col !== undefined ? `, col: ${w.col}` : '')
@@ -584,14 +898,20 @@ function generateCode() {
     return `${ind}  { shape: '${f.shape}', color: '${f.color}', col: ${f.col}, row: ${f.row}${ax} },`;
   }).join('\n');
 
+  const blocks = state.blocks.map(b =>
+    `${ind}  { shape: '${b.shape}', col: ${b.col}, row: ${b.row} },`
+  ).join('\n');
+  const blocksSection = blocks ? `  blocks: [\n${blocks}\n  ],\n` : '';
+
   const code =
 `// ── Уровень ${num} ──────────────────────────────────────────────────
 LEVELS.push({
   cols: ${state.cols}, rows: ${state.rows},
+  time: ${time},
   walls: [
 ${walls}
   ],
-  figures: [
+${blocksSection}  figures: [
 ${figs}
   ],
 });`;
@@ -600,6 +920,7 @@ ${figs}
 }
 
 document.getElementById('level-num').addEventListener('input', generateCode);
+document.getElementById('in-time').addEventListener('input', generateCode);
 
 function copyCode() {
   const ta = document.getElementById('code-out');
