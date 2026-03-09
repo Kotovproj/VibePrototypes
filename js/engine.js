@@ -116,38 +116,34 @@ function buildFigurePath(ctx, cells) {
 }
 
 function drawFigureCanvas(canvas, cells, color, W, H, outlineColor) {
-  var ctx = prepCanvas(canvas, W, H);
-  ctx.clearRect(0, 0, W, H);
+  var OUTLINE_PAD = 9;
+  var canvasW = W + OUTLINE_PAD * 2;
+  var canvasH = H + OUTLINE_PAD * 2;
+  var ctx = prepCanvas(canvas, canvasW, canvasH);
+  ctx.clearRect(0, 0, canvasW, canvasH);
   if (outlineColor) {
-    buildFigurePath(ctx, cells);
-    ctx.save();
-    // Contrast underlay keeps the outline visible on both dark and bright pieces.
-    ctx.strokeStyle = 'rgba(16,22,36,0.42)';
-    ctx.lineWidth = 8;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.restore();
-    buildFigurePath(ctx, cells);
-    ctx.save();
-    ctx.strokeStyle = outlineColor;
-    ctx.lineWidth = 5;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.shadowColor = outlineColor;
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.stroke();
-    ctx.restore();
+    var outlineOffsets = [
+      [ 8,  0], [-8,  0], [ 0,  8], [ 0, -8],
+      [ 6,  6], [-6,  6], [ 6, -6], [-6, -6]
+    ];
+    outlineOffsets.forEach(function(ofs) {
+      ctx.save();
+      ctx.translate(OUTLINE_PAD + ofs[0], OUTLINE_PAD + ofs[1]);
+      buildFigurePath(ctx, cells);
+      ctx.fillStyle = outlineColor;
+      ctx.fill();
+      ctx.restore();
+    });
   }
-  buildFigurePath(ctx, cells);
   ctx.save();
+  ctx.translate(OUTLINE_PAD, OUTLINE_PAD);
+  buildFigurePath(ctx, cells);
   ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
   ctx.fillStyle = color;
   ctx.fill();
   ctx.restore();
   ctx.save();
+  ctx.translate(OUTLINE_PAD, OUTLINE_PAD);
   ctx.globalCompositeOperation = 'source-atop';
   var hl = ctx.createLinearGradient(0, 0, 0, H * 0.45);
   hl.addColorStop(0, 'rgba(255,255,255,0.32)');
@@ -156,9 +152,75 @@ function drawFigureCanvas(canvas, cells, color, W, H, outlineColor) {
   ctx.restore();
 }
 
-function toColorKey(color) {
+function normalizeHexColor(color) {
   if (!color || typeof color !== 'string') return null;
-  return COLOR_KEY[color.toLowerCase()] || null;
+  var c = color.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(c)) return c;
+  if (/^#[0-9a-f]{3}$/.test(c)) {
+    return '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+  }
+  return null;
+}
+
+function hexToRgb(hex) {
+  var n = normalizeHexColor(hex);
+  if (!n) return null;
+  return {
+    r: parseInt(n.slice(1, 3), 16),
+    g: parseInt(n.slice(3, 5), 16),
+    b: parseInt(n.slice(5, 7), 16),
+  };
+}
+
+function rgbToHsv(r, g, b) {
+  var rn = r / 255;
+  var gn = g / 255;
+  var bn = b / 255;
+  var max = Math.max(rn, gn, bn);
+  var min = Math.min(rn, gn, bn);
+  var d = max - min;
+  var h = 0;
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  var s = max === 0 ? 0 : d / max;
+  return { h: h, s: s, v: max };
+}
+
+function hueDelta(a, b) {
+  var d = Math.abs(a - b);
+  return Math.min(d, 360 - d);
+}
+
+function closestWallKeyByHue(color) {
+  var rgb = hexToRgb(color);
+  if (!rgb) return null;
+  var hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+  var bestKey = null;
+  var bestScore = Infinity;
+  Object.keys(WALL_HEX).forEach(function(key) {
+    var wallRgb = hexToRgb(WALL_HEX[key]);
+    if (!wallRgb) return;
+    var wallHsv = rgbToHsv(wallRgb.r, wallRgb.g, wallRgb.b);
+    var score = hueDelta(hsv.h, wallHsv.h) * 4 +
+      Math.abs(hsv.s - wallHsv.s) * 100 +
+      Math.abs(hsv.v - wallHsv.v) * 40;
+    if (score < bestScore) {
+      bestScore = score;
+      bestKey = key;
+    }
+  });
+  return bestKey;
+}
+
+function toColorKey(color) {
+  var normalized = normalizeHexColor(color);
+  if (!normalized) return null;
+  return COLOR_KEY[normalized] || closestWallKeyByHue(normalized);
 }
 
 function currentFigureColorKey(fig) {
@@ -366,6 +428,8 @@ function createFigure(shapeName, color, startCol, startRow, moveAxis, outlineCol
   fig._W = W;
   fig._H = H;
   var canvas = document.createElement('canvas');
+  canvas.style.left = '-9px';
+  canvas.style.top = '-9px';
   fig._canvas = canvas;
   redrawFigureCanvas(fig);
   fig.appendChild(canvas);
@@ -590,8 +654,11 @@ function attachDrag(fig) {
       return false;
     }
     function resolveWallMatch(wall) {
-      if (fig._outlineActive && fig._outlineColorKey && wall._colorKey === fig._outlineColorKey) {
-        return breakFigureOutlineThroughWall(wall);
+      if (fig._outlineActive) {
+        if (fig._outlineColorKey && wall._colorKey === fig._outlineColorKey) {
+          return breakFigureOutlineThroughWall(wall);
+        }
+        return false;
       }
       return removeFigureThroughWall(wall);
     }

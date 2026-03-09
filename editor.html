@@ -44,9 +44,9 @@ input[type=number]:focus,select:focus{border-color:#e94560}
 
 /* ── Color dots ── */
 .color-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
-.cdot{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s}
-.cdot:hover{transform:scale(1.18)}
-.cdot.sel{border-color:#fff}
+.cdot,.odot{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s}
+.cdot:hover,.odot:hover{transform:scale(1.18)}
+.cdot.sel,.odot.sel{border-color:#fff}
 
 /* ── Axis buttons ── */
 .axis-row{display:flex;gap:5px;margin-top:5px}
@@ -247,6 +247,7 @@ input[type=number]:focus,select:focus{border-color:#e94560}
     <input type="checkbox" id="outline-enabled">
     Включить второй цвет (сначала снять контур)
   </label>
+  <div class="color-row" id="outline-color-row"></div>
   <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
     <span style="font-size:11px;color:#666">Hex:</span>
     <input type="color" id="outline-custom" value="#4caf50" style="width:36px;height:24px;padding:1px;border-radius:4px;border:1px solid #2a2a50;background:#0f0f22;cursor:pointer">
@@ -352,6 +353,7 @@ const CELL = 52, GAP = 5;
 // ── Boot ───────────────────────────────────────────────────────────────────
 function boot() {
   buildColorRow();
+  buildOutlineColorRow();
   buildColorKeyMap();
   applyGrid();
   updateWallList();
@@ -374,6 +376,24 @@ function buildColorRow() {
   });
 }
 
+function buildOutlineColorRow() {
+  const row = document.getElementById('outline-color-row');
+  row.innerHTML = '';
+  PRESET_COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'odot' + (c === selOutlineColor ? ' sel' : '');
+    d.style.background = c;
+    d.title = COLOR_KEY[c] || c;
+    d.onclick = () => {
+      selOutlineColor = c;
+      syncOutlineInputs();
+      refreshOutlineDots();
+      renderGrid();
+    };
+    row.appendChild(d);
+  });
+}
+
 function syncColorInputs() {
   document.getElementById('color-custom').value = selColor;
   document.getElementById('color-hex').value = selColor;
@@ -386,8 +406,14 @@ function syncOutlineInputs() {
 }
 
 function refreshDots() {
-  document.querySelectorAll('.cdot').forEach((d,i) => {
+  document.querySelectorAll('#color-row .cdot').forEach((d,i) => {
     d.classList.toggle('sel', PRESET_COLORS[i] === selColor);
+  });
+}
+
+function refreshOutlineDots() {
+  document.querySelectorAll('#outline-color-row .odot').forEach((d, i) => {
+    d.classList.toggle('sel', PRESET_COLORS[i] === selOutlineColor);
   });
 }
 
@@ -412,12 +438,14 @@ document.getElementById('outline-enabled').addEventListener('change', function()
 document.getElementById('outline-custom').addEventListener('input', function() {
   selOutlineColor = this.value.toLowerCase();
   document.getElementById('outline-hex').value = selOutlineColor;
+  refreshOutlineDots();
   renderGrid();
 });
 document.getElementById('outline-hex').addEventListener('change', function() {
   if (/^#[0-9a-fA-F]{6}$/.test(this.value)) {
     selOutlineColor = this.value.toLowerCase();
     document.getElementById('outline-custom').value = selOutlineColor;
+    refreshOutlineDots();
     renderGrid();
   }
 });
