@@ -296,6 +296,7 @@ function setLevel(value) {
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
 var levelLabel = document.getElementById('level-label');
+var editorBtn = document.getElementById('editor-btn');
 
 function updateNavLabel() {
   levelLabel.textContent = 'Lvl ' + (currentLevel + 1);
@@ -309,6 +310,12 @@ document.getElementById('prev-btn').addEventListener('click', function() {
 document.getElementById('next-btn').addEventListener('click', function() {
   transitionToLevel((currentLevel + 1) % LEVELS.length);
 });
+
+if (editorBtn) {
+  editorBtn.addEventListener('click', function() {
+    window.location.href = 'editor.html';
+  });
+}
 
 document.getElementById('back-btn').addEventListener('click', function() {
   window.location = "uniwebview://close";

@@ -58,6 +58,13 @@ input[type=number]:focus,select:focus{border-color:#e94560}
 .wdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .wdel{cursor:pointer;margin-left:auto;color:#e94560;font-size:14px;line-height:1;padding:0 2px}
 .wdel:hover{color:#ff6080}
+.camp-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;margin-top:6px}
+.camp-item{padding:7px;border:1px solid #2a2a50;border-radius:6px;background:#0f0f22;cursor:pointer;transition:border-color .12s,background .12s}
+.camp-item:hover{border-color:#3c3c72}
+.camp-item.sel{border-color:#e94560;background:#1f1530}
+.camp-title{font-size:11px;color:#ddd}
+.camp-meta{font-size:10px;color:#8e8ea7;margin-top:3px;line-height:1.45}
+.camp-actions{display:flex;gap:6px;margin-top:6px}
 
 /* ── Grid ── */
 #grid-wrap{position:relative;display:inline-block}
@@ -108,6 +115,60 @@ input[type=number]:focus,select:focus{border-color:#e94560}
   <label>Загрузить .js / .json
     <input type="file" id="level-file" accept=".js,.json" style="margin-top:6px;width:100%;font-size:11px;color:#888">
   </label>
+
+  <hr>
+  <div class="ph">Конструктор кампании</div>
+  <label>Вариантов на уровень
+    <input type="number" id="gen-per-level" value="10" min="1" max="100">
+  </label>
+  <label>Источник генерации
+    <select id="gen-source">
+      <option value="current" selected>Текущий загруженный уровень</option>
+      <option value="all">Все уровни из списка</option>
+    </select>
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-color-remap" checked>
+    Перемешивать цвета (сохраняя соответствия)
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-time-jitter" checked>
+    Менять время ±25%
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-layout-scramble" checked>
+    Генерировать новые раскладки (с проверкой)
+  </label>
+  <label>Шагов перестановки
+    <input type="number" id="gen-scramble-steps" value="14" min="2" max="120">
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-mutate-walls" checked>
+    Менять стены (цвет/размер/позиция/сторона)
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-mutate-blocks" checked>
+    Менять серые блоки (форма/позиция)
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-mutate-figures" checked>
+    Менять фигуры (форма/цвет/ось/outline)
+  </label>
+  <label class="check-row">
+    <input type="checkbox" id="gen-mutate-grid" checked>
+    Менять размер грида (cols/rows)
+  </label>
+  <button class="btn" onclick="importAllPresetToCampaign()">Импортировать все текущие уровни</button>
+  <button class="btn" onclick="generateCampaignVariants()">Сгенерировать варианты</button>
+  <button class="btn" onclick="addCurrentLevelToCampaign()">Добавить текущий уровень</button>
+  <button class="btn danger" onclick="clearCampaignLevels()">Очистить список</button>
+  <button class="btn primary" onclick="downloadCampaignAppend()">Скачать набор для добавления</button>
+  <button class="btn primary" onclick="downloadCampaignOverride()">Скачать набор для замены</button>
+  <div style="font-size:10px;color:#707090;line-height:1.5;margin-top:4px">
+    Добавление: подключите файл после `levels/level*.js`.
+    <br>Замена: подключите файл после `js/constants.js` и до `js/engine.js`.
+  </div>
+  <div class="camp-list" id="campaign-list"></div>
 
   <hr>
   <div class="ph">Сетка</div>
@@ -347,6 +408,8 @@ let selAxis  = null;
 let placeMode = 'figure';
 let hoverCol = -1, hoverRow = -1;
 let presetLevels = [];
+let campaignLevels = [];
+let selectedCampaignIdx = -1;
 
 const CELL = 52, GAP = 5;
 
@@ -540,10 +603,643 @@ function applyLoadedLevel(cfg, levelNumber) {
   generateCode();
 }
 
+function normalizeLevelConfig(cfg) {
+  return {
+    cols: parseInt(cfg.cols, 10) || 6,
+    rows: parseInt(cfg.rows, 10) || 7,
+    time: Math.max(1, parseInt(cfg.time, 10) || 50),
+    walls: cloneJson(cfg.walls || []),
+    figures: cloneJson(cfg.figures || []),
+    blocks: cloneJson(cfg.blocks || cfg.obstacles || []),
+  };
+}
+
+function colorToWallKey(hex) {
+  if (!hex || typeof hex !== 'string') return null;
+  return COLOR_KEY[hex.trim().toLowerCase()] || null;
+}
+
+function shuffleArray(src) {
+  const arr = src.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+function randInt(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function chance(p) {
+  return Math.random() < p;
+}
+
+function pickRandom(arr) {
+  if (!arr || !arr.length) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function shapeBounds(shapeName) {
+  const cells = SHAPES[shapeName] || [];
+  return {
+    maxC: Math.max(0, ...cells.map(c => c[0])),
+    maxR: Math.max(0, ...cells.map(c => c[1])),
+  };
+}
+
+function simCellsAt(fig, col, row) {
+  const cells = SHAPES[fig.shape] || [];
+  return cells.map(([dc, dr]) => [col + dc, row + dr]);
+}
+
+function simBuildOccupied(cfg, figures, skipIndex) {
+  const occupied = new Set();
+  (cfg.blocks || []).forEach((b) => {
+    const cells = SHAPES[b.shape] || [];
+    cells.forEach(([dc, dr]) => occupied.add((b.col + dc) + ',' + (b.row + dr)));
+  });
+  figures.forEach((f, idx) => {
+    if (idx === skipIndex) return;
+    simCellsAt(f, f.col, f.row).forEach(([c, r]) => occupied.add(c + ',' + r));
+  });
+  return occupied;
+}
+
+function simCanPlaceFigureAt(cfg, figures, idx, col, row, occupied) {
+  const fig = figures[idx];
+  const bounds = shapeBounds(fig.shape);
+  if (col < 0 || row < 0) return false;
+  if (col > cfg.cols - bounds.maxC - 1) return false;
+  if (row > cfg.rows - bounds.maxR - 1) return false;
+  const occ = occupied || simBuildOccupied(cfg, figures, idx);
+  return simCellsAt(fig, col, row).every(([c, r]) => !occ.has(c + ',' + r));
+}
+
+function simReachableAnchors(cfg, figures, idx) {
+  const fig = figures[idx];
+  const occ = simBuildOccupied(cfg, figures, idx);
+  const start = fig.col + ',' + fig.row;
+  const q = [[fig.col, fig.row]];
+  const seen = new Set([start]);
+  for (let qi = 0; qi < q.length; qi++) {
+    const [c, r] = q[qi];
+    const dirs = fig.axis === 'x'
+      ? [[1, 0], [-1, 0]]
+      : fig.axis === 'y'
+      ? [[0, 1], [0, -1]]
+      : [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    dirs.forEach(([dc, dr]) => {
+      const nc = c + dc;
+      const nr = r + dr;
+      const key = nc + ',' + nr;
+      if (seen.has(key)) return;
+      if (!simCanPlaceFigureAt(cfg, figures, idx, nc, nr, occ)) return;
+      seen.add(key);
+      q.push([nc, nr]);
+    });
+  }
+  return q.map(([c, r]) => ({ col: c, row: r }));
+}
+
+function maxWallCellsFor(cfg, dir) {
+  return (dir === 'top' || dir === 'bottom') ? cfg.cols : cfg.rows;
+}
+
+function mutateGrid(cfg) {
+  const nextCols = cfg.cols + randInt(-2, 2);
+  const nextRows = cfg.rows + randInt(-2, 2);
+  cfg.cols = Math.max(4, Math.min(12, nextCols));
+  cfg.rows = Math.max(4, Math.min(16, nextRows));
+}
+
+function normalizeWallPlacement(cfg, wall) {
+  const maxCells = Math.max(1, maxWallCellsFor(cfg, wall.dir));
+  const cells = Math.max(1, Math.min(maxCells, parseInt(wall.cells, 10) || 3));
+  const out = { color: wall.color, dir: wall.dir, cells };
+  if (wall.dir === 'top' || wall.dir === 'bottom') {
+    const maxCol = Math.max(0, cfg.cols - cells);
+    out.col = Math.max(0, Math.min(maxCol, parseInt(wall.col, 10) || 0));
+  } else {
+    const maxRow = Math.max(0, cfg.rows - cells);
+    out.row = Math.max(0, Math.min(maxRow, parseInt(wall.row, 10) || 0));
+  }
+  return out;
+}
+
+function wallRange(w) {
+  const start = (w.dir === 'top' || w.dir === 'bottom')
+    ? (parseInt(w.col, 10) || 0)
+    : (parseInt(w.row, 10) || 0);
+  const cells = Math.max(1, parseInt(w.cells, 10) || 3);
+  return { start, end: start + cells - 1 };
+}
+
+function wallsOverlapSameSide(a, b) {
+  if (a.dir !== b.dir) return false;
+  const ra = wallRange(a);
+  const rb = wallRange(b);
+  return !(ra.end < rb.start || rb.end < ra.start);
+}
+
+function mutateWalls(cfg) {
+  const dirs = ['top', 'bottom', 'left', 'right'];
+  const colors = Object.keys(WALL_CSS);
+  const src = (cfg.walls || []).length ? cfg.walls : [{ color: 'cyan', dir: 'top', col: 0, cells: 3 }];
+  const placed = [];
+  src.forEach((w) => {
+    let picked = null;
+    for (let t = 0; t < 80; t++) {
+      let next = cloneJson(w);
+      if (chance(0.35)) next.color = pickRandom(colors) || next.color;
+      if (chance(0.28)) next.dir = pickRandom(dirs) || next.dir;
+      const maxCells = Math.max(1, maxWallCellsFor(cfg, next.dir));
+      const currCells = Math.max(1, parseInt(next.cells, 10) || 3);
+      if (chance(0.7)) next.cells = Math.max(1, Math.min(maxCells, currCells + randInt(-2, 2)));
+      next = normalizeWallPlacement(cfg, next);
+      if (next.dir === 'top' || next.dir === 'bottom') {
+        next.col = randInt(0, Math.max(0, cfg.cols - next.cells));
+      } else {
+        next.row = randInt(0, Math.max(0, cfg.rows - next.cells));
+      }
+      next = normalizeWallPlacement(cfg, next);
+      if (placed.some((p) => wallsOverlapSameSide(p, next))) {
+        continue;
+      }
+      picked = next;
+      break;
+    }
+    if (!picked) {
+      // fallback: ставим маленькую стенку в свободный слот
+      for (const dir of dirs) {
+        const maxCells = Math.max(1, maxWallCellsFor(cfg, dir));
+        for (let cells = 1; cells <= Math.min(2, maxCells); cells++) {
+          const maxStart = maxCells - cells;
+          for (let start = 0; start <= maxStart; start++) {
+            const cand = normalizeWallPlacement(cfg, dir === 'top' || dir === 'bottom'
+              ? { color: pickRandom(colors) || 'cyan', dir, col: start, cells }
+              : { color: pickRandom(colors) || 'cyan', dir, row: start, cells });
+            if (placed.some((p) => wallsOverlapSameSide(p, cand))) continue;
+            picked = cand;
+            break;
+          }
+          if (picked) break;
+        }
+        if (picked) break;
+      }
+    }
+    if (picked) placed.push(picked);
+  });
+  cfg.walls = placed;
+}
+
+function sanitizeWalls(cfg) {
+  const src = (cfg.walls || []).map((w) => normalizeWallPlacement(cfg, w));
+  const out = [];
+  src.forEach((w) => {
+    if (out.some((p) => wallsOverlapSameSide(p, w))) return;
+    out.push(w);
+  });
+  if (!out.length) {
+    out.push(normalizeWallPlacement(cfg, { color: 'cyan', dir: 'top', col: 0, cells: Math.min(3, cfg.cols) }));
+  }
+  cfg.walls = out;
+}
+
+function shapeCells(shapeName) {
+  return SHAPES[shapeName] || SHAPES['1x1'];
+}
+
+function entityCells(shapeName, col, row) {
+  return shapeCells(shapeName).map(([dc, dr]) => [col + dc, row + dr]);
+}
+
+function canPlaceEntity(shapeName, col, row, cols, rows, occupied) {
+  const b = shapeBounds(shapeName);
+  if (col < 0 || row < 0) return false;
+  if (col > cols - b.maxC - 1) return false;
+  if (row > rows - b.maxR - 1) return false;
+  return entityCells(shapeName, col, row).every(([c, r]) => !occupied.has(c + ',' + r));
+}
+
+function markEntity(shapeName, col, row, occupied) {
+  entityCells(shapeName, col, row).forEach(([c, r]) => occupied.add(c + ',' + r));
+}
+
+function randomPlaceShape(shapeName, cols, rows, occupied, attempts) {
+  const tries = attempts || 120;
+  const b = shapeBounds(shapeName);
+  const maxCol = Math.max(0, cols - b.maxC - 1);
+  const maxRow = Math.max(0, rows - b.maxR - 1);
+  for (let i = 0; i < tries; i++) {
+    const col = randInt(0, maxCol);
+    const row = randInt(0, maxRow);
+    if (!canPlaceEntity(shapeName, col, row, cols, rows, occupied)) continue;
+    return { col, row };
+  }
+  return null;
+}
+
+function randomShapeName() {
+  return pickRandom(Object.keys(SHAPES)) || '1x1';
+}
+
+function mutateBlocksAndFigures(cfg, opts) {
+  const wallColors = [...new Set((cfg.walls || []).map(w => w.color).filter(Boolean))];
+  const wallHexes = wallColors.map(c => WALL_CSS[c]).filter(Boolean);
+  const fallbackHexes = Object.values(WALL_CSS);
+  const colorPool = wallHexes.length ? wallHexes : fallbackHexes;
+  const occupied = new Set();
+  const newBlocks = [];
+  const newFigures = [];
+
+  const baseBlocks = cloneJson(cfg.blocks || []);
+  const baseFigures = cloneJson(cfg.figures || []);
+
+  baseBlocks.forEach((b) => {
+    let shape = b.shape;
+    if (opts.mutateBlocks && chance(0.75)) shape = randomShapeName();
+    const place = opts.mutateBlocks
+      ? (randomPlaceShape(shape, cfg.cols, cfg.rows, occupied, 180) ||
+         (canPlaceEntity(b.shape, b.col, b.row, cfg.cols, cfg.rows, occupied) ? { col: b.col, row: b.row } : null))
+      : (canPlaceEntity(b.shape, b.col, b.row, cfg.cols, cfg.rows, occupied) ? { col: b.col, row: b.row } : null);
+    if (!place) return;
+    newBlocks.push({ shape, col: place.col, row: place.row });
+    markEntity(shape, place.col, place.row, occupied);
+  });
+
+  baseFigures.forEach((f) => {
+    let shape = f.shape;
+    let axis = f.axis || null;
+    let color = f.color;
+    let outlineColor = f.outlineColor || null;
+
+    if (opts.mutateFigures) {
+      if (chance(0.72)) shape = randomShapeName();
+      if (chance(0.45)) axis = pickRandom([null, 'x', 'y']);
+      if (chance(0.8)) color = pickRandom(colorPool) || color;
+      if (chance(0.7)) {
+        if (chance(0.5)) {
+          const outlinePool = colorPool.filter(c => c !== color);
+          outlineColor = pickRandom(outlinePool) || pickRandom(colorPool) || null;
+        } else {
+          outlineColor = null;
+        }
+      }
+    }
+
+    const place = opts.mutateFigures
+      ? (randomPlaceShape(shape, cfg.cols, cfg.rows, occupied, 240) ||
+         (canPlaceEntity(f.shape, f.col, f.row, cfg.cols, cfg.rows, occupied) ? { col: f.col, row: f.row } : null))
+      : (canPlaceEntity(f.shape, f.col, f.row, cfg.cols, cfg.rows, occupied) ? { col: f.col, row: f.row } : null);
+    if (!place) return;
+    const nextFig = { shape, color, col: place.col, row: place.row };
+    if (axis) nextFig.axis = axis;
+    if (outlineColor) nextFig.outlineColor = outlineColor;
+    newFigures.push(nextFig);
+    markEntity(shape, place.col, place.row, occupied);
+  });
+
+  cfg.blocks = newBlocks;
+  cfg.figures = newFigures;
+}
+
+function figureFitsAnyWallByColor(fig, cfg, colorKey) {
+  if (!colorKey) return false;
+  const b = shapeBounds(fig.shape);
+  return (cfg.walls || []).some((w) => {
+    if (w.color !== colorKey) return false;
+    const cells = Math.max(1, parseInt(w.cells, 10) || 3);
+    return (w.dir === 'top' || w.dir === 'bottom')
+      ? (b.maxC + 1 <= cells)
+      : (b.maxR + 1 <= cells);
+  });
+}
+
+function validateVariant(cfg) {
+  if (!cfg.figures || !cfg.figures.length) return false;
+  if (!cfg.walls || !cfg.walls.length) return false;
+  const wallColors = new Set((cfg.walls || []).map(w => w.color));
+  for (const f of cfg.figures) {
+    const ck = colorToWallKey(f.color);
+    if (!ck || !wallColors.has(ck)) return false;
+    if (!figureFitsAnyWallByColor(f, cfg, ck)) return false;
+    if (f.outlineColor) {
+      const ok = colorToWallKey(f.outlineColor);
+      if (!ok || !wallColors.has(ok)) return false;
+      if (!figureFitsAnyWallByColor(f, cfg, ok)) return false;
+    }
+  }
+  return true;
+}
+
+function scrambleLevelLayout(baseCfg, steps) {
+  const cfg = normalizeLevelConfig(baseCfg);
+  const figures = cloneJson(cfg.figures || []);
+  if (!figures.length) return { cfg, movedSteps: 0, guaranteed: true };
+  let moved = 0;
+  let guards = 0;
+  const guardMax = Math.max(300, steps * figures.length * 10);
+  while (moved < steps && guards < guardMax) {
+    guards++;
+    const idx = Math.floor(Math.random() * figures.length);
+    const reachable = simReachableAnchors(cfg, figures, idx);
+    const candidates = reachable.filter(p => p.col !== figures[idx].col || p.row !== figures[idx].row);
+    if (!candidates.length) continue;
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    figures[idx].col = pick.col;
+    figures[idx].row = pick.row;
+    moved++;
+  }
+  cfg.figures = figures;
+  return { cfg, movedSteps: moved, guaranteed: moved > 0 };
+}
+
+function mutateLevelVariant(baseCfg, opts) {
+  const maxAttempts = 14;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const cfg = normalizeLevelConfig(baseCfg);
+    if (opts.mutateGrid) mutateGrid(cfg);
+    if (opts.mutateWalls) mutateWalls(cfg);
+    sanitizeWalls(cfg);
+    if (opts.mutateBlocks || opts.mutateFigures) mutateBlocksAndFigures(cfg, opts);
+
+    if (opts.timeJitter) {
+      const factor = 0.75 + Math.random() * 0.5;
+      cfg.time = Math.max(1, Math.round(cfg.time * factor));
+    }
+
+    if (opts.colorRemap) {
+      const usedWallColors = [...new Set(cfg.walls.map(w => w.color).filter(Boolean))];
+      if (usedWallColors.length > 1) {
+        const pool = shuffleArray(Object.keys(WALL_CSS));
+        const picked = pool.slice(0, usedWallColors.length);
+        const remap = {};
+        usedWallColors.forEach((oldColor, i) => { remap[oldColor] = picked[i]; });
+        cfg.walls.forEach(w => { if (remap[w.color]) w.color = remap[w.color]; });
+        cfg.figures.forEach(f => {
+          const wk = colorToWallKey(f.color);
+          if (wk && remap[wk]) f.color = WALL_CSS[remap[wk]];
+          if (f.outlineColor) {
+            const okw = colorToWallKey(f.outlineColor);
+            if (okw && remap[okw]) f.outlineColor = WALL_CSS[remap[okw]];
+          }
+        });
+      }
+    }
+
+    if (validateVariant(cfg)) return cfg;
+  }
+  return normalizeLevelConfig(baseCfg);
+}
+
+function currentStateToLevelCfg() {
+  return normalizeLevelConfig({
+    cols: state.cols,
+    rows: state.rows,
+    time: state.time,
+    walls: state.walls,
+    figures: state.figures,
+    blocks: state.blocks,
+  });
+}
+
+function describeLevel(cfg) {
+  return `${cfg.cols}x${cfg.rows} | fig:${(cfg.figures || []).length} wall:${(cfg.walls || []).length} block:${(cfg.blocks || []).length} | ${cfg.time}s`;
+}
+
+function renderCampaignList() {
+  const el = document.getElementById('campaign-list');
+  el.innerHTML = '';
+  campaignLevels.forEach((item, idx) => {
+    const d = document.createElement('div');
+    d.className = 'camp-item' + (idx === selectedCampaignIdx ? ' sel' : '');
+    const source = item.source ? ` · ${item.source}` : '';
+    d.innerHTML = `
+      <div class="camp-title">#${idx + 1}${source}</div>
+      <div class="camp-meta">${describeLevel(item.cfg)}</div>
+      <div class="camp-actions">
+        <button class="btn sm" onclick="selectCampaignLevel(${idx});return false;">Открыть</button>
+        <button class="btn sm danger" onclick="removeCampaignLevel(${idx});return false;">Удалить</button>
+      </div>
+    `;
+    d.onclick = () => selectCampaignLevel(idx);
+    el.appendChild(d);
+  });
+}
+
+function selectCampaignLevel(idx) {
+  if (!campaignLevels[idx]) return;
+  selectedCampaignIdx = idx;
+  applyLoadedLevel(campaignLevels[idx].cfg, idx + 1);
+  renderCampaignList();
+}
+
+function removeCampaignLevel(idx) {
+  if (!campaignLevels[idx]) return;
+  campaignLevels.splice(idx, 1);
+  if (selectedCampaignIdx === idx) selectedCampaignIdx = -1;
+  else if (selectedCampaignIdx > idx) selectedCampaignIdx -= 1;
+  if (selectedCampaignIdx >= campaignLevels.length) selectedCampaignIdx = campaignLevels.length - 1;
+  renderCampaignList();
+}
+
+function importAllPresetToCampaign() {
+  campaignLevels = presetLevels.map((item) => ({
+    source: item.label,
+    cfg: normalizeLevelConfig(item.cfg),
+  }));
+  selectedCampaignIdx = -1;
+  renderCampaignList();
+}
+
+function generateCampaignVariants() {
+  const sourceMode = document.getElementById('gen-source').value || 'current';
+  const perLevel = Math.max(1, Math.min(100, parseInt(document.getElementById('gen-per-level').value, 10) || 10));
+  const opts = {
+    colorRemap: document.getElementById('gen-color-remap').checked,
+    timeJitter: document.getElementById('gen-time-jitter').checked,
+    layoutScramble: document.getElementById('gen-layout-scramble').checked,
+    scrambleSteps: Math.max(2, Math.min(120, parseInt(document.getElementById('gen-scramble-steps').value, 10) || 14)),
+    mutateWalls: document.getElementById('gen-mutate-walls').checked,
+    mutateBlocks: document.getElementById('gen-mutate-blocks').checked,
+    mutateFigures: document.getElementById('gen-mutate-figures').checked,
+    mutateGrid: document.getElementById('gen-mutate-grid').checked,
+  };
+  const baseLevels = sourceMode === 'all'
+    ? presetLevels.map((item) => ({ label: item.label, cfg: item.cfg }))
+    : [{ label: 'Current', cfg: currentStateToLevelCfg() }];
+
+  if (!baseLevels.length) {
+    alert('Нет уровней для генерации. Нажмите "Обновить список уровней".');
+    return;
+  }
+
+  const generated = [];
+  let generatedLayouts = 0;
+  baseLevels.forEach((item) => {
+    for (let i = 0; i < perLevel; i++) {
+      let cfg = item.cfg;
+      let suffix = '';
+      if (opts.layoutScramble) {
+        const layout = scrambleLevelLayout(cfg, opts.scrambleSteps);
+        cfg = layout.cfg;
+        if (layout.guaranteed) {
+          generatedLayouts++;
+          suffix = ` · layout:${layout.movedSteps}`;
+        }
+      }
+      generated.push({
+        source: `${item.label} · gen ${i + 1}${suffix}`,
+        cfg: mutateLevelVariant(cfg, opts),
+      });
+    }
+  });
+  campaignLevels = generated;
+  selectedCampaignIdx = generated.length ? 0 : -1;
+  renderCampaignList();
+  if (generated.length) selectCampaignLevel(0);
+  if (opts.layoutScramble && generatedLayouts === 0) {
+    alert('Не получилось переставить фигуры. Уменьшите шаги или проверьте плотность уровня.');
+  }
+}
+
+function addCurrentLevelToCampaign() {
+  campaignLevels.push({
+    source: 'Текущий',
+    cfg: currentStateToLevelCfg(),
+  });
+  selectedCampaignIdx = campaignLevels.length - 1;
+  renderCampaignList();
+}
+
+function clearCampaignLevels() {
+  if (!campaignLevels.length) return;
+  if (!confirm('Очистить список уровней конструктора?')) return;
+  campaignLevels = [];
+  selectedCampaignIdx = -1;
+  renderCampaignList();
+}
+
+function levelConfigToJs(cfg, num) {
+  const c = normalizeLevelConfig(cfg);
+  const ind = '  ';
+  const walls = c.walls.map(w => {
+    const pos = (w.dir === 'top' || w.dir === 'bottom')
+      ? (w.col !== undefined ? `, col: ${w.col}` : '')
+      : (w.row !== undefined ? `, row: ${w.row}` : '');
+    const cells = w.cells !== undefined ? `, cells: ${w.cells}` : '';
+    return `${ind}  { color: '${w.color}', dir: '${w.dir}'${pos}${cells} },`;
+  }).join('\n');
+  const blocks = c.blocks.map(b =>
+    `${ind}  { shape: '${b.shape}', col: ${b.col}, row: ${b.row} },`
+  ).join('\n');
+  const figs = c.figures.map(f => {
+    const outline = f.outlineColor ? `, outlineColor: '${f.outlineColor}'` : '';
+    const ax = f.axis ? `, axis: '${f.axis}'` : '';
+    return `${ind}  { shape: '${f.shape}', color: '${f.color}', col: ${f.col}, row: ${f.row}${outline}${ax} },`;
+  }).join('\n');
+  const blocksSection = blocks ? `  blocks: [\n${blocks}\n  ],\n` : '';
+  return `// ── Уровень ${num} ──────────────────────────────────────────────────
+LEVELS.push({
+  cols: ${c.cols}, rows: ${c.rows},
+  time: ${c.time},
+  walls: [
+${walls}
+  ],
+${blocksSection}  figures: [
+${figs}
+  ],
+});`;
+}
+
+function buildCampaignCode(levels, options) {
+  const opts = options || {};
+  const chunks = [];
+  if (opts.reset) {
+    chunks.push('// Сброс текущего пула уровней');
+    chunks.push('LEVELS.length = 0;');
+    chunks.push('');
+  }
+  levels.forEach((item, idx) => {
+    chunks.push(levelConfigToJs(item.cfg || item, idx + 1));
+    chunks.push('');
+  });
+  return chunks.join('\n').trim() + '\n';
+}
+
+function downloadTextFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime || 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function downloadCampaignAppend() {
+  if (!campaignLevels.length) {
+    alert('Список конструктора пуст');
+    return;
+  }
+  downloadTextFile(buildCampaignCode(campaignLevels, { reset: false }), 'levels.generated.js', 'text/javascript');
+}
+
+function downloadCampaignOverride() {
+  if (!campaignLevels.length) {
+    alert('Список конструктора пуст');
+    return;
+  }
+  downloadTextFile(buildCampaignCode(campaignLevels, { reset: true }), 'levels.override.js', 'text/javascript');
+}
+
 async function refreshPresetLevels() {
   const sel = document.getElementById('preset-levels');
   sel.innerHTML = '<option>Загрузка списка…</option>';
   presetLevels = [];
+
+  async function loadByScriptProbe() {
+    const loaded = [];
+    const originalLevelsRef = window.LEVELS;
+    window.LEVELS = [];
+
+    function loadScript(path) {
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = path + '?t=' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+        s.onload = () => { s.remove(); resolve(true); };
+        s.onerror = () => { s.remove(); resolve(false); };
+        document.head.appendChild(s);
+      });
+    }
+
+    // Пробуем диапазон с запасом; пропуски поддерживаются.
+    for (let num = 1; num <= 200; num++) {
+      const path = 'levels/level' + num + '.js';
+      const before = window.LEVELS.length;
+      const ok = await loadScript(path);
+      if (!ok) continue;
+      const after = window.LEVELS.length;
+      if (after <= before) continue;
+      for (let i = before; i < after; i++) {
+        const cfg = window.LEVELS[i];
+        if (!cfg || typeof cfg !== 'object') continue;
+        loaded.push({
+          num,
+          path,
+          cfg: cloneJson(cfg),
+          label: i === before ? ('Level ' + num) : ('Level ' + num + ' [' + (i - before + 1) + ']')
+        });
+      }
+    }
+
+    // Возвращаем исходное значение LEVELS, чтобы не засорять глобалы редактора.
+    if (originalLevelsRef === undefined) delete window.LEVELS;
+    else window.LEVELS = originalLevelsRef;
+    return loaded;
+  }
+
   try {
     const indexRes = await fetch('index.html');
     const indexText = await indexRes.text();
@@ -564,21 +1260,28 @@ async function refreshPresetLevels() {
         });
       });
     }
-    sel.innerHTML = '';
-    if (!presetLevels.length) {
-      sel.innerHTML = '<option>Нет доступных уровней</option>';
+  } catch (e) {
+    console.warn('Fetch-режим загрузки уровней недоступен, переключаюсь на script-probe.', e);
+    try {
+      presetLevels = await loadByScriptProbe();
+    } catch (e2) {
+      sel.innerHTML = '<option>Ошибка чтения уровней</option>';
+      console.error(e2);
       return;
     }
-    presetLevels.forEach((it, i) => {
-      const opt = document.createElement('option');
-      opt.value = String(i);
-      opt.textContent = it.label;
-      sel.appendChild(opt);
-    });
-  } catch (e) {
-    sel.innerHTML = '<option>Ошибка чтения уровней</option>';
-    console.error(e);
   }
+
+  sel.innerHTML = '';
+  if (!presetLevels.length) {
+    sel.innerHTML = '<option>Нет доступных уровней</option>';
+    return;
+  }
+  presetLevels.forEach((it, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = it.label;
+    sel.appendChild(opt);
+  });
 }
 
 function loadSelectedPresetLevel() {
@@ -965,42 +1668,9 @@ function setPlaceMode(mode) {
 
 // ── Code generation ────────────────────────────────────────────────────────
 function generateCode() {
-  const num   = document.getElementById('level-num').value || 'N';
-  const ind   = '  ';
-  const time  = Math.max(1, parseInt(document.getElementById('in-time').value, 10) || state.time || 50);
-  state.time = time;
-  const walls = state.walls.map(w => {
-    const pos = (w.dir==='top'||w.dir==='bottom')
-      ? (w.col !== undefined ? `, col: ${w.col}` : '')
-      : (w.row !== undefined ? `, row: ${w.row}` : '');
-    return `${ind}  { color: '${w.color}', dir: '${w.dir}'${pos}, cells: ${w.cells} },`;
-  }).join('\n');
-
-  const figs = state.figures.map(f => {
-    const ax = f.axis ? `, axis: '${f.axis}'` : '';
-    const outline = f.outlineColor ? `, outlineColor: '${f.outlineColor}'` : '';
-    return `${ind}  { shape: '${f.shape}', color: '${f.color}', col: ${f.col}, row: ${f.row}${outline}${ax} },`;
-  }).join('\n');
-
-  const blocks = state.blocks.map(b =>
-    `${ind}  { shape: '${b.shape}', col: ${b.col}, row: ${b.row} },`
-  ).join('\n');
-  const blocksSection = blocks ? `  blocks: [\n${blocks}\n  ],\n` : '';
-
-  const code =
-`// ── Уровень ${num} ──────────────────────────────────────────────────
-LEVELS.push({
-  cols: ${state.cols}, rows: ${state.rows},
-  time: ${time},
-  walls: [
-${walls}
-  ],
-${blocksSection}  figures: [
-${figs}
-  ],
-});`;
-
-  document.getElementById('code-out').value = code;
+  const num = document.getElementById('level-num').value || 'N';
+  state.time = Math.max(1, parseInt(document.getElementById('in-time').value, 10) || state.time || 50);
+  document.getElementById('code-out').value = levelConfigToJs(currentStateToLevelCfg(), num);
 }
 
 document.getElementById('level-num').addEventListener('input', generateCode);
@@ -1018,12 +1688,7 @@ function copyCode() {
 function downloadLevel() {
   const num  = document.getElementById('level-num').value || 'N';
   const code = document.getElementById('code-out').value;
-  const blob = new Blob([code], { type: 'text/javascript' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = `level${num}.js`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadTextFile(code, `level${num}.js`, 'text/javascript');
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
