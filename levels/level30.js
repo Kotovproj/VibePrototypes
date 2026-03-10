@@ -1,0 +1,35 @@
+// ── Уровень 30 ──────────────────────────────────────────────────
+LEVELS.push({
+  cols: 8, rows: 9,
+  time: 340,
+  walls: [
+    { color: 'blue', dir: 'top', col: 0, cells: 2 },
+    { color: 'purple', dir: 'top', col: 2, cells: 2 },
+    { color: 'orange', dir: 'top', col: 4, cells: 2 },
+    { color: 'cyan', dir: 'top', col: 6, cells: 2 },
+    { color: 'green', dir: 'left', row: 0, cells: 3 },
+    { color: 'red', dir: 'left', row: 3, cells: 3 },
+    { color: 'purple', dir: 'right', row: 1, cells: 3 },
+    { color: 'orange', dir: 'right', row: 6, cells: 3 },
+    { color: 'yellow', dir: 'bottom', col: 0, cells: 2 },
+    { color: 'blue', dir: 'bottom', col: 6, cells: 2 },
+  ],
+  blocks: [
+    { shape: '1x1', col: 2, row: 6 },
+    { shape: '1x1', col: 6, row: 6 },
+  ],
+  figures: [
+    { shape: 'mini_J', color: '#c84bdf', col: 3, row: 0, outlineColor: '#29b6f6' },
+    { shape: '2x1', color: '#ff9800', col: 5, row: 0, axis: 'x' },
+    { shape: '2x1', color: '#1976d2', col: 2, row: 8, axis: 'x' },
+    { shape: 'J', color: '#1976d2', col: 0, row: 0, outlineColor: '#ffc107', axis: 'y' },
+    { shape: 'mini_L', color: '#ffc107', col: 0, row: 7, outlineColor: '#f44336', axis: 'y' },
+    { shape: '1x3', color: '#29b6f6', col: 7, row: 1, outlineColor: '#1976d2', axis: 'y' },
+    { shape: '1x1', color: '#29b6f6', col: 7, row: 0, outlineColor: '#ffc107' },
+    { shape: 'fat_T', color: '#4caf50', col: 3, row: 2, outlineColor: '#c84bdf' },
+    { shape: '1x1', color: '#f44336', col: 4, row: 8, outlineColor: '#4caf50' },
+    { shape: '1x1', color: '#f44336', col: 6, row: 8, outlineColor: '#4caf50' },
+    { shape: 'mini_J', color: '#ff9800', col: 6, row: 7, outlineColor: '#4caf50' },
+    { shape: 'T', color: '#f44336', col: 0, row: 3, outlineColor: '#ff9800' },
+  ],
+});
