@@ -693,30 +693,30 @@ body {
   align-items: center;
 }
 .sc-coin {
-  width: clamp(52px, 9vw, 68px);
-  height: clamp(52px, 9vw, 68px);
+  width: clamp(40px, 7vw, 52px);
+  height: clamp(40px, 7vw, 52px);
   position: relative;
   z-index: 2;
-  margin-right: clamp(-18px, -3vw, -14px);
-  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
+  margin-right: clamp(-26px, -4.5vw, -20px);
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35));
   pointer-events: none;
   flex-shrink: 0;
 }
 .sc-panel {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background-image: url('../core_universal_back.png');
   background-size: 100% 100%;
   background-color: #f5f5f5;
-  border-radius: 30px;
-  padding: 6px 6px 6px clamp(24px, 4vw, 32px);
-  min-width: clamp(110px, 20vw, 140px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+  border-radius: 24px;
+  padding: 4px 4px 4px clamp(18px, 3.2vw, 24px);
+  min-width: clamp(88px, 16vw, 112px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.22);
 }
 #sc-value {
   font-family: 'Arial Black', Impact, sans-serif;
-  font-size: clamp(20px, 3.8vw, 28px);
+  font-size: clamp(16px, 3vw, 22px);
   font-weight: 900;
   color: #1a1a2e;
   line-height: 1;
@@ -724,8 +724,8 @@ body {
   text-align: center;
 }
 #sc-add-btn {
-  width: clamp(38px, 7vw, 50px);
-  height: clamp(38px, 7vw, 50px);
+  width: clamp(30px, 5.5vw, 40px);
+  height: clamp(30px, 5.5vw, 40px);
   border: none;
   background: none;
   padding: 0;
