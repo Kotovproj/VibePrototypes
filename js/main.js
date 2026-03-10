@@ -532,6 +532,7 @@ function showBoosterTutorial() {
   tutBtn.classList.remove('unlocked', 'shatter-out', 'appear-in');
   overlay.style.display = 'flex';
   requestAnimationFrame(function() { overlay.style.opacity = '1'; });
+  startBoosterHandAnim(tutBtn);
   setTimeout(function() {
     if (boosterTutorialActive) boosterBreakAnimation(tutBtn, rect);
   }, 650);
@@ -585,6 +586,7 @@ function spawnBoosterShards(rect) {
 
 function startBoosterHandAnim(btn) {
   if (!boosterTutorialActive) return;
+  if (boosterHandAnim) { boosterHandAnim.cancel(); boosterHandAnim = null; }
   var rect   = btn.getBoundingClientRect();
   var hw     = 84;
   var handX  = rect.left + rect.width * 0.44 - hw * 0.4;
@@ -686,6 +688,14 @@ window.onLevelComplete = function() {
 function loadLevel(idx) {
   hideBoosterTutorial();
   resetFreezeState();
+  if (idx === 7) {
+    var freezeBtn = document.getElementById('booster-freeze');
+    if (freezeBtn) {
+      freezeBtn.querySelector('.booster-icon').textContent = '🔒';
+      freezeBtn.querySelector('.booster-lvl').textContent  = 'Lv.8';
+      freezeBtn.classList.remove('unlocked');
+    }
+  }
   var cfg = LEVELS[idx] || {};
   defaultLevelTimeSeconds = typeof cfg.time === 'number' ? Math.max(1, cfg.time) : 50;
   setupTutorialForLevel(idx);
