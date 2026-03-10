@@ -1,0 +1,38 @@
+// ── Уровень 9 ──────────────────────────────────────────────────
+LEVELS.push({
+  cols: 7, rows: 7,
+  time: 250,
+  walls: [
+    { color: 'green', dir: 'top', col: 0, cells: 2 },
+    { color: 'red', dir: 'top', col: 5, cells: 2 },
+    { color: 'red', dir: 'left', row: 5, cells: 2 },
+    { color: 'purple', dir: 'right', row: 4, cells: 3 },
+    { color: 'yellow', dir: 'right', row: 0, cells: 1 },
+    { color: 'blue', dir: 'right', row: 1, cells: 2 },
+    { color: 'cyan', dir: 'bottom', col: 0, cells: 1 },
+    { color: 'green', dir: 'bottom', col: 6, cells: 1 },
+  ],
+  blocks: [
+    { shape: '1x1', col: 4, row: 0 },
+    { shape: '1x1', col: 3, row: 0 },
+    { shape: '1x1', col: 2, row: 0 },
+    { shape: '1x1', col: 3, row: 1 },
+  ],
+  figures: [
+    { shape: 'mini_L', color: '#1976d2', col: 0, row: 0 },
+    { shape: 'mini_J', color: '#f44336', col: 0, row: 2 },
+    { shape: '1x3', color: '#c84bdf', col: 0, row: 3 },
+    { shape: '2x1', color: '#1976d2', col: 0, row: 6 },
+    { shape: '1x1', color: '#ffc107', col: 1, row: 5 },
+    { shape: '1x1', color: '#4caf50', col: 5, row: 0 },
+    { shape: '1x1', color: '#ffc107', col: 3, row: 2 },
+    { shape: '1x2', color: '#29b6f6', col: 2, row: 1 },
+    { shape: '1x3', color: '#29b6f6', col: 4, row: 1 },
+    { shape: '2x1', color: '#ffc107', col: 4, row: 4 },
+    { shape: '2x1', color: '#ffc107', col: 5, row: 5 },
+    { shape: '1x2', color: '#4caf50', col: 3, row: 3 },
+    { shape: 'mini_J', color: '#4caf50', col: 3, row: 5 },
+    { shape: 'mini_J', color: '#c84bdf', col: 5, row: 1 },
+    { shape: 'mini_J', color: '#f44336', col: 5, row: 3 },
+  ],
+});
