@@ -1,10 +1,10 @@
-// ── Уровень 1: два столбца 3×4 ────────────────────────────────────────
+// ── Уровень 1 ──────────────────────────────────────────────────
 LEVELS.push({
   cols: 6, rows: 7,
-  time: 50,
+  time: 200,
   walls: [
-    { color: 'cyan',   dir: 'top'              },
-    { color: 'purple', dir: 'bottom', col: 0   },
+    { color: 'cyan', dir: 'top' },
+    { color: 'purple', dir: 'bottom', col: 0 },
   ],
   figures: [
     { shape: '3x4', color: '#c84bdf', col: 0, row: 2 },

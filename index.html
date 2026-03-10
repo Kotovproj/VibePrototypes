@@ -37,7 +37,7 @@
   </div>
 
   <div id="boosters-bar" aria-label="Boosters">
-    <button class="booster-btn" aria-label="Booster locked level 8">
+    <button class="booster-btn" id="booster-freeze" aria-label="Booster locked level 8">
       <span class="booster-icon">🔒</span>
       <span class="booster-lvl">Lv.8</span>
     </button>
@@ -56,14 +56,11 @@
   <img id="tutorial-hand" src="tutor_hand.png" alt="" />
   <div id="start-overlay" style="display:none;">
     <div id="start-card">
-      <h2 id="start-title">Well Done</h2>
-      <div id="unlock-burst"></div>
-      <div id="unlock-block" aria-hidden="true">
-        <span class="stud"></span><span class="stud"></span>
-        <span class="stud"></span><span class="stud"></span>
-        <span class="stud"></span><span class="stud"></span>
-        <span class="stud"></span><span class="stud"></span>
-        <span class="arrow">↕</span>
+      <h2 id="start-title">Booster Unlocked!</h2>
+      <div id="unlock-figure-wrap">
+        <div id="unlock-burst"></div>
+        <canvas id="unlock-canvas"></canvas>
+        <div id="unlock-fig-arrow">↕</div>
       </div>
       <p id="start-subtitle">You have unlocked the <b>Arrow Block!</b></p>
       <p id="start-desc">Moves only in the given direction!</p>
@@ -103,6 +100,15 @@
     </div>
 
     <div id="hold-hint">Hold to see the board</div>
+  </div>
+
+  <!-- Booster tutorial overlay -->
+  <div id="booster-tutorial" style="display:none;" aria-hidden="true">
+    <div id="booster-spotlight"></div>
+    <button id="booster-tutorial-btn" class="booster-btn">
+      <span class="booster-icon">🔒</span>
+      <span class="booster-lvl">Lv.8</span>
+    </button>
   </div>
 
   <script src="js/constants.js"></script>

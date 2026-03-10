@@ -854,6 +854,7 @@ function scaleGame() {
     availH / frameH,
     1
   ) * 0.98;
+  frame.style.left = '50%';
   frame.style.top = Math.round(reservedTop + availH / 2) + 'px';
   frame.style.transform = 'translate(-50%, -50%) scale(' + gameScale.toFixed(4) + ')';
 }
