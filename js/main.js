@@ -39,6 +39,7 @@ var boosterTutorialActive = false;
 var boosterHandAnim = null;
 var freezeActive = false;
 var freezeTimerId = null;
+var freezeSceneOverlay = null;
 
 var tutorial = {
   levelIndex: 0,
@@ -584,6 +585,88 @@ function spawnBoosterShards(rect) {
   }
 }
 
+function spawnFreezeFlash() {
+  var el = document.createElement('div');
+  el.className = 'freeze-flash';
+  document.body.appendChild(el);
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 700);
+}
+
+function spawnIceParticles() {
+  var boardEl = document.getElementById('board');
+  if (!boardEl) return;
+  var rect = boardEl.getBoundingClientRect();
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + rect.height / 2;
+  var count = 16;
+  var colors = ['rgba(200,242,255,0.92)', 'rgba(160,228,255,0.88)', 'rgba(220,248,255,0.96)', 'rgba(130,215,255,0.82)'];
+  for (var i = 0; i < count; i++) {
+    (function(idx) {
+      var el = document.createElement('div');
+      el.className = 'ice-shard';
+      var sz = 5 + Math.random() * 11;
+      var angle = (idx / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+      var dist = 80 + Math.random() * 140;
+      var startX = cx + (Math.random() - 0.5) * 50 - sz / 2;
+      var startY = cy + (Math.random() - 0.5) * 50 - sz / 2;
+      el.style.cssText = 'width:' + sz + 'px;height:' + sz + 'px;' +
+        'left:' + startX + 'px;top:' + startY + 'px;' +
+        'background:' + colors[idx % colors.length] + ';';
+      document.body.appendChild(el);
+      el.animate([
+        { transform: 'translate(0,0) rotate(0deg) scale(1)', opacity: 1 },
+        { transform: 'translate(' + (Math.cos(angle) * dist * 0.4) + 'px,' +
+                                    (Math.sin(angle) * dist * 0.4) + 'px)' +
+                     ' rotate(' + (Math.random() * 100) + 'deg) scale(1.3)', opacity: 1, offset: 0.28 },
+        { transform: 'translate(' + (Math.cos(angle) * dist) + 'px,' +
+                                    (Math.sin(angle) * dist) + 'px)' +
+                     ' rotate(' + (Math.random() * 360) + 'deg) scale(0.1)', opacity: 0 }
+      ], { duration: 480 + Math.random() * 340, easing: 'ease-out', fill: 'forwards' });
+      setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1000);
+    })(i);
+  }
+}
+
+function spawnFreezeSceneOverlay() {
+  var frameEl = document.getElementById('frame');
+  if (!frameEl) return;
+  if (freezeSceneOverlay && freezeSceneOverlay.parentNode) {
+    freezeSceneOverlay.parentNode.removeChild(freezeSceneOverlay);
+  }
+  var el = document.createElement('div');
+  el.className = 'freeze-scene-overlay';
+  frameEl.appendChild(el);
+  requestAnimationFrame(function() { el.classList.add('active'); });
+  freezeSceneOverlay = el;
+}
+
+function removeFreezeSceneOverlay() {
+  if (!freezeSceneOverlay) return;
+  var el = freezeSceneOverlay;
+  freezeSceneOverlay = null;
+  el.classList.remove('active');
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1000);
+}
+
+function spawnThawParticles() {
+  var boardEl = document.getElementById('board');
+  if (!boardEl) return;
+  var rect = boardEl.getBoundingClientRect();
+  for (var i = 0; i < 11; i++) {
+    (function() {
+      var el = document.createElement('div');
+      el.className = 'thaw-vapor';
+      var sz = 9 + Math.random() * 20;
+      el.style.cssText = 'width:' + sz + 'px;height:' + sz + 'px;' +
+        'left:' + (rect.left + Math.random() * rect.width - sz / 2) + 'px;' +
+        'top:'  + (rect.top  + Math.random() * rect.height - sz / 2) + 'px;' +
+        'animation-delay:' + (Math.random() * 0.6) + 's;';
+      document.body.appendChild(el);
+      setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 2200);
+    })();
+  }
+}
+
 function startBoosterHandAnim(btn) {
   if (!boosterTutorialActive) return;
   if (boosterHandAnim) { boosterHandAnim.cancel(); boosterHandAnim = null; }
@@ -633,6 +716,15 @@ function activateFreeze() {
     srcBtn.querySelector('.booster-lvl').textContent  = '1';
     srcBtn.classList.add('unlocked');
   }
+  // World freeze effect
+  document.body.classList.add('frozen');
+  var frameEl = document.getElementById('frame');
+  if (frameEl) frameEl.classList.add('frozen');
+  var boardEl = document.getElementById('board');
+  if (boardEl) boardEl.classList.add('frozen');
+  spawnFreezeFlash();
+  spawnIceParticles();
+  spawnFreezeSceneOverlay();
   // Freeze timer
   freezeActive = true;
   clearLevelTimer();
@@ -646,6 +738,14 @@ function deactivateFreeze() {
   if (!freezeActive) return;
   freezeActive = false;
   if (freezeTimerId) { clearTimeout(freezeTimerId); freezeTimerId = null; }
+  // Remove world freeze
+  document.body.classList.remove('frozen');
+  var frameEl = document.getElementById('frame');
+  if (frameEl) frameEl.classList.remove('frozen');
+  var boardEl = document.getElementById('board');
+  if (boardEl) boardEl.classList.remove('frozen');
+  removeFreezeSceneOverlay();
+  spawnThawParticles();
   timeValue.classList.remove('frozen');
   if (timeCaptionEl) timeCaptionEl.classList.remove('frozen');
   if (hudMainEl) hudMainEl.classList.remove('frozen');
@@ -655,6 +755,16 @@ function deactivateFreeze() {
 function resetFreezeState() {
   freezeActive = false;
   if (freezeTimerId) { clearTimeout(freezeTimerId); freezeTimerId = null; }
+  // Remove world freeze without particles
+  document.body.classList.remove('frozen');
+  var frameEl = document.getElementById('frame');
+  if (frameEl) frameEl.classList.remove('frozen');
+  var boardEl = document.getElementById('board');
+  if (boardEl) boardEl.classList.remove('frozen');
+  if (freezeSceneOverlay && freezeSceneOverlay.parentNode) {
+    freezeSceneOverlay.parentNode.removeChild(freezeSceneOverlay);
+    freezeSceneOverlay = null;
+  }
   timeValue.classList.remove('frozen');
   if (timeCaptionEl) timeCaptionEl.classList.remove('frozen');
   if (hudMainEl) hudMainEl.classList.remove('frozen');

@@ -830,7 +830,7 @@ function attachDrag(fig) {
 function scaleGame() {
   var frameW = BOARD_W + 2 * BORDER;
   var frameH = BOARD_H + 2 * BORDER;
-  var topAnchors = ['hud-top', 'back-btn', 'level-nav'];
+  var topAnchors = ['hud-top', 'back-btn', 'soft-currency'];
   var topMax = 0;
   topAnchors.forEach(function(id) {
     var el = document.getElementById(id);
