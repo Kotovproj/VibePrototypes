@@ -743,16 +743,105 @@ function wallsOverlapSameSide(a, b) {
   return !(ra.end < rb.start || rb.end < ra.start);
 }
 
+function requiredWallColorsFromFigures(cfg) {
+  const seen = new Set();
+  const out = [];
+  (cfg.figures || []).forEach((f) => {
+    const fillKey = colorToWallKey(f.color);
+    if (fillKey && !seen.has(fillKey)) {
+      seen.add(fillKey);
+      out.push(fillKey);
+    }
+    if (f.outlineColor) {
+      const outlineKey = colorToWallKey(f.outlineColor);
+      if (outlineKey && !seen.has(outlineKey)) {
+        seen.add(outlineKey);
+        out.push(outlineKey);
+      }
+    }
+  });
+  return out;
+}
+
+function buildNonOverlappingWall(cfg, existingWalls, colorKey) {
+  const dirs = shuffleArray(['top', 'bottom', 'left', 'right']);
+  for (const dir of dirs) {
+    const maxCells = Math.max(1, maxWallCellsFor(cfg, dir));
+    const cellsPool = [...new Set([Math.min(3, maxCells), Math.min(2, maxCells), 1])];
+    const cellsList = shuffleArray(cellsPool);
+    for (const cells of cellsList) {
+      const maxStart = Math.max(0, maxCells - cells);
+      const starts = [];
+      for (let s = 0; s <= maxStart; s++) starts.push(s);
+      for (const start of shuffleArray(starts)) {
+        const cand = normalizeWallPlacement(cfg, (dir === 'top' || dir === 'bottom')
+          ? { color: colorKey, dir, col: start, cells }
+          : { color: colorKey, dir, row: start, cells });
+        if (existingWalls.some((w) => wallsOverlapSameSide(w, cand))) continue;
+        return cand;
+      }
+    }
+  }
+  return null;
+}
+
+function ensureRequiredWallColors(cfg) {
+  const requiredColors = requiredWallColorsFromFigures(cfg);
+  const walls = (cfg.walls || []).map((w) => normalizeWallPlacement(cfg, w));
+  if (!requiredColors.length || !walls.length) {
+    cfg.walls = walls;
+    return;
+  }
+
+  while (walls.length < requiredColors.length) {
+    const missingColor = requiredColors[walls.length % requiredColors.length];
+    const extra = buildNonOverlappingWall(cfg, walls, missingColor);
+    if (!extra) break;
+    walls.push(extra);
+  }
+
+  const colorToIdx = new Map();
+  walls.forEach((w, idx) => {
+    if (!colorToIdx.has(w.color)) colorToIdx.set(w.color, []);
+    colorToIdx.get(w.color).push(idx);
+  });
+  const missing = requiredColors.filter((c) => !colorToIdx.has(c));
+  if (!missing.length) {
+    cfg.walls = walls;
+    return;
+  }
+
+  const figures = cfg.figures || [];
+  const scored = walls
+    .map((w, idx) => ({
+      idx,
+      score: wallScoreForFigures(w, cfg, figures),
+      duplicates: (colorToIdx.get(w.color) || []).length,
+    }))
+    .sort((a, b) => b.duplicates - a.duplicates || a.score - b.score);
+  const taken = new Set();
+  missing.forEach((colorKey, i) => {
+    const pick = scored.find((s) => !taken.has(s.idx)) || scored[i % scored.length];
+    if (!pick) return;
+    taken.add(pick.idx);
+    walls[pick.idx].color = colorKey;
+  });
+
+  cfg.walls = walls;
+}
+
 function mutateWalls(cfg) {
   const dirs = ['top', 'bottom', 'left', 'right'];
   const colors = Object.keys(WALL_CSS);
+  const requiredColors = requiredWallColorsFromFigures(cfg);
+  const colorPool = requiredColors.length ? requiredColors : colors;
   const src = (cfg.walls || []).length ? cfg.walls : [{ color: 'cyan', dir: 'top', col: 0, cells: 3 }];
   const placed = [];
   src.forEach((w) => {
     let picked = null;
     for (let t = 0; t < 80; t++) {
       let next = cloneJson(w);
-      if (chance(0.35)) next.color = pickRandom(colors) || next.color;
+      if (chance(0.2)) next.color = pickRandom(colorPool) || next.color;
       if (chance(0.28)) next.dir = pickRandom(dirs) || next.dir;
       const maxCells = Math.max(1, maxWallCellsFor(cfg, next.dir));
       const currCells = Math.max(1, parseInt(next.cells, 10) || 3);
@@ -778,8 +867,8 @@ function mutateWalls(cfg) {
           const maxStart = maxCells - cells;
           for (let start = 0; start <= maxStart; start++) {
             const cand = normalizeWallPlacement(cfg, dir === 'top' || dir === 'bottom'
-              ? { color: pickRandom(colors) || 'cyan', dir, col: start, cells }
-              : { color: pickRandom(colors) || 'cyan', dir, row: start, cells });
+              ? { color: pickRandom(colorPool) || 'cyan', dir, col: start, cells }
+              : { color: pickRandom(colorPool) || 'cyan', dir, row: start, cells });
             if (placed.some((p) => wallsOverlapSameSide(p, cand))) continue;
             picked = cand;
             break;
@@ -791,7 +880,14 @@ function mutateWalls(cfg) {
     }
     if (picked) placed.push(picked);
   });
+  while (placed.length < requiredColors.length) {
+    const nextColor = requiredColors[placed.length % requiredColors.length];
+    const extra = buildNonOverlappingWall(cfg, placed, nextColor);
+    if (!extra) break;
+    placed.push(extra);
+  }
   cfg.walls = placed;
+  ensureRequiredWallColors(cfg);
 }
 
 function sanitizeWalls(cfg) {
@@ -917,18 +1013,138 @@ function figureFitsAnyWallByColor(fig, cfg, colorKey) {
   });
 }
 
+function figureFitsWallBySize(fig, wall) {
+  const b = shapeBounds(fig.shape);
+  const cells = Math.max(1, parseInt(wall.cells, 10) || 3);
+  return (wall.dir === 'top' || wall.dir === 'bottom')
+    ? (b.maxC + 1 <= cells)
+    : (b.maxR + 1 <= cells);
+}
+
+function wallCanBeUsedFromAnchor(fig, wall, anchor, cfg) {
+  const b = shapeBounds(fig.shape);
+  const start = (wall.dir === 'top' || wall.dir === 'bottom')
+    ? (parseInt(wall.col, 10) || 0)
+    : (parseInt(wall.row, 10) || 0);
+  const cells = Math.max(1, parseInt(wall.cells, 10) || 3);
+  const end = start + cells - 1;
+
+  if (wall.dir === 'top') {
+    if (anchor.row !== 0) return false;
+    return anchor.col >= start && (anchor.col + b.maxC) <= end;
+  }
+  if (wall.dir === 'bottom') {
+    if (anchor.row !== cfg.rows - b.maxR - 1) return false;
+    return anchor.col >= start && (anchor.col + b.maxC) <= end;
+  }
+  if (wall.dir === 'left') {
+    if (anchor.col !== 0) return false;
+    return anchor.row >= start && (anchor.row + b.maxR) <= end;
+  }
+  if (wall.dir === 'right') {
+    if (anchor.col !== cfg.cols - b.maxC - 1) return false;
+    return anchor.row >= start && (anchor.row + b.maxR) <= end;
+  }
+  return false;
+}
+
+function figureHasReachableWallForColor(cfg, figures, idx, colorKey) {
+  if (!colorKey) return false;
+  const fig = figures[idx];
+  const anchors = simReachableAnchors(cfg, figures, idx);
+  if (!anchors.length) return false;
+  return (cfg.walls || []).some((w) => (
+    w.color === colorKey &&
+    figureFitsWallBySize(fig, w) &&
+    anchors.some((a) => wallCanBeUsedFromAnchor(fig, w, a, cfg))
+  ));
+}
+
+function wallScoreForFigures(wall, cfg, figures) {
+  let score = 0;
+  figures.forEach((fig, idx) => {
+    const fillKey = colorToWallKey(fig.color);
+    const outlineKey = fig.outlineColor ? colorToWallKey(fig.outlineColor) : null;
+    if (wall.color !== fillKey && wall.color !== outlineKey) return;
+    if (!figureFitsWallBySize(fig, wall)) return;
+    const anchors = simReachableAnchors(cfg, figures, idx);
+    if (!anchors.length) return;
+    if (anchors.some((a) => wallCanBeUsedFromAnchor(fig, wall, a, cfg))) {
+      score += wall.color === fillKey ? 3 : 2;
+    }
+  });
+  return score;
+}
+
+function rebalanceWalls(cfg) {
+  const normalized = (cfg.walls || []).map((w) => normalizeWallPlacement(cfg, w));
+  const unique = [];
+  normalized.forEach((w) => {
+    if (unique.some((p) => wallsOverlapSameSide(p, w))) return;
+    unique.push(w);
+  });
+  if (!unique.length) {
+    cfg.walls = [normalizeWallPlacement(cfg, { color: 'cyan', dir: 'top', col: 0, cells: Math.min(3, cfg.cols) })];
+    return;
+  }
+
+  const figures = cfg.figures || [];
+  const requiredColors = new Set();
+  figures.forEach((f) => {
+    const fillKey = colorToWallKey(f.color);
+    if (fillKey) requiredColors.add(fillKey);
+    if (f.outlineColor) {
+      const outlineKey = colorToWallKey(f.outlineColor);
+      if (outlineKey) requiredColors.add(outlineKey);
+    }
+  });
+
+  const scored = unique
+    .map((w, idx) => ({
+      idx,
+      w,
+      score: wallScoreForFigures(w, cfg, figures),
+    }))
+    .sort((a, b) => b.score - a.score || b.w.cells - a.w.cells);
+
+  const minWalls = Math.max(1, requiredColors.size);
+  const maxWalls = Math.max(minWalls, Math.min(4, minWalls + 1));
+  const selected = [];
+  const used = new Set();
+
+  requiredColors.forEach((colorKey) => {
+    const best = scored.find((s) => s.w.color === colorKey && !used.has(s.idx));
+    if (!best) return;
+    used.add(best.idx);
+    selected.push(best.w);
+  });
+
+  for (const item of scored) {
+    if (selected.length >= maxWalls) break;
+    if (used.has(item.idx)) continue;
+    used.add(item.idx);
+    selected.push(item.w);
+  }
+
+  cfg.walls = (selected.length ? selected : [scored[0].w]).slice(0, maxWalls);
+}
+
 function validateVariant(cfg) {
   if (!cfg.figures || !cfg.figures.length) return false;
   if (!cfg.walls || !cfg.walls.length) return false;
   const wallColors = new Set((cfg.walls || []).map(w => w.color));
-  for (const f of cfg.figures) {
+  const figures = cfg.figures || [];
+  for (let i = 0; i < figures.length; i++) {
+    const f = figures[i];
     const ck = colorToWallKey(f.color);
     if (!ck || !wallColors.has(ck)) return false;
     if (!figureFitsAnyWallByColor(f, cfg, ck)) return false;
+    if (!figureHasReachableWallForColor(cfg, figures, i, ck)) return false;
     if (f.outlineColor) {
       const ok = colorToWallKey(f.outlineColor);
       if (!ok || !wallColors.has(ok)) return false;
       if (!figureFitsAnyWallByColor(f, cfg, ok)) return false;
+      if (!figureHasReachableWallForColor(cfg, figures, i, ok)) return false;
     }
   }
   return true;
@@ -957,13 +1173,17 @@ function scrambleLevelLayout(baseCfg, steps) {
 }
 
 function mutateLevelVariant(baseCfg, opts) {
-  const maxAttempts = 14;
+  const maxAttempts = 60;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const cfg = normalizeLevelConfig(baseCfg);
     if (opts.mutateGrid) mutateGrid(cfg);
     if (opts.mutateWalls) mutateWalls(cfg);
     sanitizeWalls(cfg);
     if (opts.mutateBlocks || opts.mutateFigures) mutateBlocksAndFigures(cfg, opts);
+    if (opts.mutateWalls) {
+      rebalanceWalls(cfg);
+      ensureRequiredWallColors(cfg);
+    }
 
     if (opts.timeJitter) {
       const factor = 0.75 + Math.random() * 0.5;
