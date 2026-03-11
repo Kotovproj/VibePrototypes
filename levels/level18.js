@@ -1,7 +1,7 @@
-// ── Уровень 9 ──────────────────────────────────────────────────
+// ── Уровень 18 ──────────────────────────────────────────────────
 LEVELS.push({
   cols: 5, rows: 7,
-  time: 120,
+  time: 200,
   walls: [
     { color: 'yellow', dir: 'top', col: 3, cells: 2 },
     { color: 'green', dir: 'top', col: 0, cells: 1 },
@@ -33,5 +33,6 @@ LEVELS.push({
     { shape: '1x1', color: '#c84bdf', col: 4, row: 2 },
     { shape: '1x1', color: '#4caf50', col: 3, row: 0 },
     { shape: '1x2', color: '#4caf50', col: 3, row: 1 },
+    { shape: '2x2', color: '#ff5fa2', col: 2, row: 3 },
   ],
 });

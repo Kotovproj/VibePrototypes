@@ -27,15 +27,28 @@ var startOverlayConfigs = {
     desc: 'Tap a block to blow it up!',
     draw: null, // assigned below
   },
+  17: {
+    arrowText: '',
+    subtitle: 'You have unlocked the <b style="color:#cc44ff">Black Hole!</b>',
+    desc: 'Sucks in any block with gravitational force!',
+    draw: null, // assigned below
+  },
 };
-var dynamiteTutorialActive = false;
-var dynamiteHandAnim = null;
-var dynamiteFigActive = false;
-var dynamiteFigTarget = null;
-var dynamiteFigHandler = null;
-var dynamiteSelectCleanup = null;
-var freezeCharges   = 0;
-var dynamiteCharges = 0;
+var dynamiteTutorialActive  = false;
+var dynamiteHandAnim        = null;
+var dynamiteFigActive       = false;
+var dynamiteFigTarget       = null;
+var dynamiteFigHandler      = null;
+var dynamiteSelectCleanup   = null;
+var blackholeTutorialActive = false;
+var blackholeHandAnim       = null;
+var blackholeFigActive      = false;
+var blackholeFigTarget      = null;
+var blackholeFigHandler     = null;
+var blackholeSelectCleanup  = null;
+var freezeCharges     = 0;
+var dynamiteCharges   = 0;
+var blackholeCharges  = 0;
 var startOverlayFadeMs = 300;
 var tutorialHandEl = document.getElementById('tutorial-hand');
 var levelTimerId = null;
@@ -652,6 +665,119 @@ function drawDynamiteSymbol() {
 }
 startOverlayConfigs[12].draw = drawDynamiteSymbol;
 
+function drawBlackholeSymbol() {
+  var canvas = document.getElementById('unlock-canvas');
+  if (!canvas) return;
+  var W = 152, H = 170;
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  var cx = W / 2, cy = H / 2 + 10;
+  var r = 46;
+  // Deep space background glow
+  var bgGlow = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r * 2.2);
+  bgGlow.addColorStop(0, 'rgba(120, 0, 200, 0.38)');
+  bgGlow.addColorStop(0.5, 'rgba(70, 0, 140, 0.18)');
+  bgGlow.addColorStop(1, 'rgba(20, 0, 60, 0)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 2.2, 0, Math.PI * 2);
+  ctx.fillStyle = bgGlow;
+  ctx.fill();
+  // Tiny stars
+  [[cx+r*1.45, cy-r*0.9], [cx-r*1.3, cy+r*0.7], [cx+r*0.4, cy-r*1.65],
+   [cx-r*1.1, cy-r*1.25], [cx+r*1.25, cy+r*0.85], [cx-r*0.3, cy+r*1.6]].forEach(function(p) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(220, 190, 255, 0.88)';
+    ctx.shadowColor = 'rgba(200, 160, 255, 0.95)';
+    ctx.shadowBlur = 5;
+    ctx.fill();
+    ctx.restore();
+  });
+  // Accretion disk — back half (behind the hole)
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1, 0.26);
+  var diskBack = ctx.createRadialGradient(0, 0, r * 0.75, 0, r * 0.02, r * 1.75);
+  diskBack.addColorStop(0, 'rgba(200, 80, 255, 0.75)');
+  diskBack.addColorStop(0.55, 'rgba(120, 20, 200, 0.5)');
+  diskBack.addColorStop(1, 'rgba(60, 0, 130, 0)');
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2);
+  ctx.fillStyle = diskBack;
+  ctx.fill();
+  ctx.restore();
+  // Black hole body
+  var bodyGrad = ctx.createRadialGradient(cx - r*0.18, cy - r*0.18, 3, cx, cy, r);
+  bodyGrad.addColorStop(0, '#1c0040');
+  bodyGrad.addColorStop(0.55, '#0a001c');
+  bodyGrad.addColorStop(1, '#000000');
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.shadowColor = 'rgba(130, 0, 220, 0.85)';
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.restore();
+  // Event horizon ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(170, 50, 255, 0.78)';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = 'rgba(180, 60, 255, 0.95)';
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+  ctx.restore();
+  // Accretion disk — front arc (above the hole)
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1, 0.26);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.55, Math.PI, 0);
+  ctx.strokeStyle = 'rgba(240, 170, 255, 0.98)';
+  ctx.lineWidth = 9 / 0.26;
+  ctx.shadowColor = 'rgba(210, 80, 255, 0.95)';
+  ctx.shadowBlur = 12 / 0.26;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  // Disk color gradient overlay
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.55, Math.PI, 0);
+  ctx.strokeStyle = 'rgba(160, 40, 255, 0.55)';
+  ctx.lineWidth = 16 / 0.26;
+  ctx.stroke();
+  ctx.restore();
+  // Gravitational lensing light streaks
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200, 140, 255, 0.48)';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  [[cx+r*1.62, cy-r*0.35, cx+r*1.18, cy-r*0.12],
+   [cx-r*1.55, cy-r*0.28, cx-r*1.12, cy-r*0.08],
+   [cx+r*0.55, cy-r*1.52, cx+r*0.22, cy-r*1.1],
+   [cx-r*0.48, cy+r*1.48, cx-r*0.18, cy+r*1.08]].forEach(function(s) {
+    ctx.beginPath(); ctx.moveTo(s[0],s[1]); ctx.lineTo(s[2],s[3]); ctx.stroke();
+  });
+  ctx.restore();
+  // Inner violet glow core
+  var coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.55);
+  coreGlow.addColorStop(0, 'rgba(180, 80, 255, 0.22)');
+  coreGlow.addColorStop(1, 'rgba(100, 0, 180, 0)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+  ctx.fillStyle = coreGlow;
+  ctx.fill();
+}
+startOverlayConfigs[17].draw = drawBlackholeSymbol;
+
 // ── Booster charge helpers ────────────────────────────────────────────────────
 
 function updateFreezeDisplay() {
@@ -668,6 +794,14 @@ function updateDynamiteDisplay() {
   btn.querySelector('.booster-lvl').textContent = String(dynamiteCharges);
   if (dynamiteCharges <= 0) btn.classList.add('depleted');
   else                      btn.classList.remove('depleted');
+}
+
+function updateBlackholeDisplay() {
+  var btn = document.getElementById('booster-blackhole');
+  if (!btn || !btn.classList.contains('unlocked')) return;
+  btn.querySelector('.booster-lvl').textContent = String(blackholeCharges);
+  if (blackholeCharges <= 0) btn.classList.add('depleted');
+  else                       btn.classList.remove('depleted');
 }
 
 function shakeBooster(btn) {
@@ -1002,16 +1136,17 @@ function activateDynamite() {
   updateDynamiteDisplay();
   // After overlay fade, highlight a figure for the free tutorial demonstration
   setTimeout(function() {
-    var figures = document.querySelectorAll('.figure');
+    var figures = Array.from(document.querySelectorAll('.figure'));
     if (!figures.length) return;
-    var fig = figures[Math.floor(figures.length / 2)];
+    var fig = figures.find(function(f) { return f._color === '#ff5fa2'; })
+           || figures[Math.floor(figures.length / 2)];
     startDynamiteFigHighlight(fig);
   }, 380);
 }
 
-// Free-use dynamite: player taps any figure
+// Free-use dynamite: player taps any figure or blocker
 function startDynamiteSelectMode() {
-  var figures = Array.from(document.querySelectorAll('.figure'));
+  var figures = Array.from(document.querySelectorAll('.figure, .blocker'));
   if (!figures.length) { dynamiteCharges++; updateDynamiteDisplay(); return; }
   dynamiteFigActive = true;
   sceneEl.style.pointerEvents = 'none';
@@ -1133,9 +1268,34 @@ function startDynamiteExplosion(fig) {
   setTimeout(doBeep, 280);
 }
 
+// Removes a figure or blocker cleanly, updating all engine state
+function removeTargetElement(el) {
+  if (el.classList.contains('figure')) {
+    freeCells(el);
+    el.remove();
+    if (typeof window.onFigureRemoved === 'function') window.onFigureRemoved(el);
+    figureCount--;
+    if (figureCount === 0) {
+      setTimeout(function() {
+        if (typeof window.onLevelComplete === 'function') window.onLevelComplete();
+      }, 500);
+    }
+  } else if (el.classList.contains('blocker')) {
+    occupied.forEach(function(val, key) { if (val === el) occupied.delete(key); });
+    var bi = blockers.indexOf(el);
+    if (bi !== -1) blockers.splice(bi, 1);
+    el.remove();
+  }
+}
+
 function triggerDynamiteExplosion(fig, dynEl, cx, cy) {
   if (dynEl.parentNode) dynEl.parentNode.removeChild(dynEl);
-  spawnExplosionParticles(cx, cy, fig._color || '#ff6600');
+  spawnExplosionParticles(cx, cy, fig._color || '#888888');
+  // Screen shake
+  document.body.classList.remove('explosion-shake');
+  void document.body.offsetWidth; // reflow to restart animation
+  document.body.classList.add('explosion-shake');
+  setTimeout(function() { document.body.classList.remove('explosion-shake'); }, 400);
   // Flash
   var flash = document.createElement('div');
   flash.style.cssText =
@@ -1143,21 +1303,10 @@ function triggerDynamiteExplosion(fig, dynEl, cx, cy) {
   document.body.appendChild(flash);
   flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' });
   setTimeout(function() { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 260);
-  // Remove the figure cleanly
-  freeCells(fig);
   fig.style.transition = 'transform 0.12s ease-out, opacity 0.12s ease-in';
   fig.style.transform  = 'scale(1.2)';
   fig.style.opacity    = '0';
-  setTimeout(function() {
-    fig.remove();
-    if (typeof window.onFigureRemoved === 'function') window.onFigureRemoved(fig);
-    figureCount--;
-    if (figureCount === 0) {
-      setTimeout(function() {
-        if (typeof window.onLevelComplete === 'function') window.onLevelComplete();
-      }, 500);
-    }
-  }, 140);
+  setTimeout(function() { removeTargetElement(fig); }, 140);
 }
 
 function spawnExplosionParticles(cx, cy, baseColor) {
@@ -1202,6 +1351,310 @@ function resetDynamiteState() {
   dynamiteFigHandler = null;
   if (dynamiteHandAnim) { dynamiteHandAnim.cancel(); dynamiteHandAnim = null; }
   hideDynamiteTutorial();
+}
+
+// ── Black Hole Tutorial ───────────────────────────────────────────────────────
+
+function showBlackholeTutorial() {
+  var overlay   = document.getElementById('blackhole-tutorial');
+  var tutBtn    = document.getElementById('blackhole-tutorial-btn');
+  var spotlight = document.getElementById('blackhole-spotlight');
+  var srcBtn    = document.getElementById('booster-blackhole');
+  if (!overlay || !tutBtn || !spotlight || !srcBtn) return;
+  blackholeTutorialActive = true;
+  sceneEl.style.pointerEvents = 'none';
+  var rect = srcBtn.getBoundingClientRect();
+  spotlight.style.left   = (rect.left - 12) + 'px';
+  spotlight.style.top    = (rect.top  - 12) + 'px';
+  spotlight.style.width  = (rect.width  + 24) + 'px';
+  spotlight.style.height = (rect.height + 24) + 'px';
+  tutBtn.style.left   = rect.left   + 'px';
+  tutBtn.style.top    = rect.top    + 'px';
+  tutBtn.style.width  = rect.width  + 'px';
+  tutBtn.style.height = rect.height + 'px';
+  tutBtn.querySelector('.booster-icon').textContent = '🔒';
+  tutBtn.querySelector('.booster-lvl').textContent  = 'Lv.18';
+  tutBtn.classList.remove('unlocked', 'shatter-out', 'appear-in');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(function() { overlay.style.opacity = '1'; });
+  startBHHandAnim(tutBtn);
+  setTimeout(function() {
+    if (blackholeTutorialActive) blackholeBreakAnimation(tutBtn, rect);
+  }, 650);
+}
+
+function blackholeBreakAnimation(btn, rect) {
+  btn.classList.add('shatter-out');
+  spawnBlackholeShards(rect);
+  setTimeout(function() {
+    if (!blackholeTutorialActive) return;
+    btn.querySelector('.booster-icon').textContent = '🕳️';
+    btn.querySelector('.booster-lvl').textContent  = '2';
+    btn.classList.remove('shatter-out');
+    btn.classList.add('unlocked', 'appear-in');
+    setTimeout(function() {
+      if (!blackholeTutorialActive) return;
+      btn.classList.remove('appear-in');
+      startBHHandAnim(btn);
+    }, 480);
+  }, 440);
+}
+
+function spawnBlackholeShards(rect) {
+  var cx = rect.left + rect.width  / 2;
+  var cy = rect.top  + rect.height / 2;
+  var colors = ['#aa00ff','#cc44ff','#8800cc','#ff88ff','#6600aa','#dd00ff','#9922ee','#ee88ff'];
+  for (var i = 0; i < 8; i++) {
+    (function(idx) {
+      var s = document.createElement('div');
+      var sz = 7 + Math.random() * 11;
+      s.style.cssText =
+        'position:fixed;z-index:10503;width:' + sz + 'px;height:' + sz + 'px;' +
+        'left:' + (cx - sz/2 + (Math.random()-0.5)*20) + 'px;' +
+        'top:'  + (cy - sz/2 + (Math.random()-0.5)*20) + 'px;' +
+        'background:' + colors[idx % colors.length] + ';' +
+        'border-radius:' + (Math.random() > 0.5 ? '50%' : '4px') + ';' +
+        'pointer-events:none;opacity:1;' +
+        'box-shadow:0 0 6px ' + colors[idx % colors.length] + ';';
+      document.body.appendChild(s);
+      var angle = (idx / 8) * Math.PI * 2 + (Math.random()-0.5) * 0.8;
+      var dist  = 48 + Math.random() * 52;
+      s.animate([
+        { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 },
+        { transform: 'translate(' + (Math.cos(angle)*dist) + 'px,' +
+                                    (Math.sin(angle)*dist) + 'px)' +
+                     ' scale(0.15) rotate(' + (Math.random()*360) + 'deg)', opacity: 0 }
+      ], { duration: 500, easing: 'ease-out', fill: 'forwards' });
+      setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 520);
+    })(i);
+  }
+}
+
+function startBHHandAnim(btn) {
+  if (!blackholeTutorialActive) return;
+  if (blackholeHandAnim) { blackholeHandAnim.cancel(); blackholeHandAnim = null; }
+  var rect   = btn.getBoundingClientRect();
+  var hw     = 84;
+  var handX  = rect.left + rect.width * 0.44 - hw * 0.4;
+  var startY = window.innerHeight + 10;
+  var tapY   = rect.bottom - rect.height * 0.32 - hw * 0.18;
+  tutorialHandEl.style.display   = 'block';
+  tutorialHandEl.style.left      = handX + 'px';
+  tutorialHandEl.style.top       = startY + 'px';
+  tutorialHandEl.style.zIndex    = '10503';
+  requestAnimationFrame(function() { tutorialHandEl.style.opacity = '1'; });
+  var dy = tapY - startY;
+  blackholeHandAnim = tutorialHandEl.animate([
+    { transform: 'translateY(0)',                               opacity: 0 },
+    { transform: 'translateY(' + (dy * 0.58) + 'px)',          opacity: 1, offset: 0.16 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.40 },
+    { transform: 'translateY(' + dy + 'px) scale(0.88)',        offset: 0.52, easing: 'ease-in-out' },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.64 },
+    { transform: 'translateY(' + (dy * 0.86) + 'px)',          offset: 0.82 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 1 },
+  ], { duration: 1500, easing: 'ease-in-out', iterations: Infinity });
+}
+
+function hideBlackholeTutorial() {
+  if (!blackholeTutorialActive) return;
+  blackholeTutorialActive = false;
+  if (blackholeHandAnim) { blackholeHandAnim.cancel(); blackholeHandAnim = null; }
+  tutorialHandEl.style.opacity = '0';
+  tutorialHandEl.style.zIndex  = '';
+  setTimeout(function() { tutorialHandEl.style.display = 'none'; }, 220);
+  var overlay = document.getElementById('blackhole-tutorial');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(function() { overlay.style.display = 'none'; }, 300);
+  }
+  sceneEl.style.pointerEvents = '';
+}
+
+function activateBlackhole() {
+  hideBlackholeTutorial();
+  var srcBtn = document.getElementById('booster-blackhole');
+  if (srcBtn) {
+    srcBtn.querySelector('.booster-icon').textContent = '🕳️';
+    srcBtn.classList.add('unlocked');
+  }
+  blackholeCharges = 1;   // tutorial used 1 of the 2 shown, 1 remains
+  updateBlackholeDisplay();
+  setTimeout(function() {
+    var figures = Array.from(document.querySelectorAll('.figure'));
+    if (!figures.length) return;
+    var fig = figures.find(function(f) { return f._color === '#ff5fa2'; })
+           || figures[Math.floor(figures.length / 2)];
+    startBHFigHighlight(fig);
+  }, 380);
+}
+
+function startBHFigHighlight(fig) {
+  blackholeFigActive = true;
+  blackholeFigTarget = fig;
+  fig.classList.add('blackhole-target');
+  fig.style.zIndex = '200';
+  fig.style.pointerEvents = 'auto';
+  sceneEl.style.pointerEvents = 'none';
+  startBHFigHandAnim(fig);
+  blackholeFigHandler = function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!blackholeFigActive) return;
+    blackholeFigActive = false;
+    blackholeFigTarget = null;
+    if (blackholeHandAnim) { blackholeHandAnim.cancel(); blackholeHandAnim = null; }
+    tutorialHandEl.style.opacity = '0';
+    setTimeout(function() { tutorialHandEl.style.display = 'none'; }, 220);
+    fig.removeEventListener('pointerdown', blackholeFigHandler);
+    blackholeFigHandler = null;
+    fig.classList.remove('blackhole-target');
+    fig.style.zIndex = '';
+    sceneEl.style.pointerEvents = '';
+    startBlackholeEffect(fig);
+  };
+  fig.addEventListener('pointerdown', blackholeFigHandler);
+}
+
+function startBHFigHandAnim(fig) {
+  if (!blackholeFigActive) return;
+  if (blackholeHandAnim) { blackholeHandAnim.cancel(); blackholeHandAnim = null; }
+  var rect   = fig.getBoundingClientRect();
+  var hw     = 84;
+  var handX  = rect.left + rect.width  * 0.44 - hw * 0.4;
+  var startY = window.innerHeight + 10;
+  var tapY   = rect.top  + rect.height * 0.52 - hw * 0.18;
+  tutorialHandEl.style.display = 'block';
+  tutorialHandEl.style.left    = handX + 'px';
+  tutorialHandEl.style.top     = startY + 'px';
+  tutorialHandEl.style.zIndex  = '10505';
+  requestAnimationFrame(function() { tutorialHandEl.style.opacity = '1'; });
+  var dy = tapY - startY;
+  blackholeHandAnim = tutorialHandEl.animate([
+    { transform: 'translateY(0)',                               opacity: 0 },
+    { transform: 'translateY(' + (dy * 0.58) + 'px)',          opacity: 1, offset: 0.16 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.40 },
+    { transform: 'translateY(' + dy + 'px) scale(0.88)',        offset: 0.52, easing: 'ease-in-out' },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.64 },
+    { transform: 'translateY(' + (dy * 0.86) + 'px)',          offset: 0.82 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 1 },
+  ], { duration: 1400, easing: 'ease-in-out', iterations: Infinity });
+}
+
+// Free-use black hole: player taps any figure or blocker
+function startBlackholeSelectMode() {
+  var figures = Array.from(document.querySelectorAll('.figure, .blocker'));
+  if (!figures.length) { blackholeCharges++; updateBlackholeDisplay(); return; }
+  blackholeFigActive = true;
+  sceneEl.style.pointerEvents = 'none';
+  var handlers = [];
+  function cleanup() {
+    figures.forEach(function(fig, i) {
+      fig.classList.remove('blackhole-selectable');
+      fig.style.pointerEvents = '';
+      if (handlers[i]) fig.removeEventListener('pointerdown', handlers[i]);
+    });
+    blackholeSelectCleanup = null;
+  }
+  blackholeSelectCleanup = function() { cleanup(); blackholeFigActive = false; sceneEl.style.pointerEvents = ''; };
+  figures.forEach(function(fig, i) {
+    fig.classList.add('blackhole-selectable');
+    fig.style.pointerEvents = 'auto';
+    var h = function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      cleanup();
+      blackholeFigActive = false;
+      sceneEl.style.pointerEvents = '';
+      startBlackholeEffect(fig);
+    };
+    handlers[i] = h;
+    fig.addEventListener('pointerdown', h);
+  });
+}
+
+function startBlackholeEffect(fig) {
+  var rect = fig.getBoundingClientRect();
+  var cx = rect.left + rect.width  / 2;
+  var cy = rect.top  + rect.height / 2;
+  // Create black hole element
+  var bhEl = document.createElement('div');
+  bhEl.className = 'blackhole-overlay';
+  bhEl.style.left = cx + 'px';
+  bhEl.style.top  = cy + 'px';
+  var ring = document.createElement('div');
+  ring.className = 'blackhole-ring';
+  bhEl.appendChild(ring);
+  var ringOuter = document.createElement('div');
+  ringOuter.className = 'blackhole-ring-outer';
+  bhEl.appendChild(ringOuter);
+  document.body.appendChild(bhEl);
+  // Appear
+  bhEl.animate([
+    { transform: 'translate(-50%,-50%) scale(0)',    opacity: 0 },
+    { transform: 'translate(-50%,-50%) scale(1.18)', opacity: 1, offset: 0.6 },
+    { transform: 'translate(-50%,-50%) scale(1)',    opacity: 1 }
+  ], { duration: 380, easing: 'ease-out', fill: 'forwards' });
+  // Suck in figure
+  setTimeout(function() {
+    spawnBlackholeParticles(cx, cy);
+    fig.style.transformOrigin = '50% 50%';
+    fig.animate([
+      { transform: 'scale(1)    rotate(0deg)',   opacity: 1,   filter: 'brightness(1)' },
+      { transform: 'scale(0.52) rotate(280deg)', opacity: 0.7, filter: 'brightness(1.9) hue-rotate(80deg)',  offset: 0.42 },
+      { transform: 'scale(0.02) rotate(620deg)', opacity: 0,   filter: 'brightness(3)  hue-rotate(180deg)' }
+    ], { duration: 660, easing: 'ease-in', fill: 'forwards' });
+    // BH pulses bigger then shrinks after figure is gone
+    setTimeout(function() {
+      removeTargetElement(fig);
+      // BH pulse then collapse
+      bhEl.animate([
+        { transform: 'translate(-50%,-50%) scale(1)',   opacity: 1 },
+        { transform: 'translate(-50%,-50%) scale(1.28)', opacity: 1, offset: 0.35 },
+        { transform: 'translate(-50%,-50%) scale(0)',   opacity: 0 }
+      ], { duration: 440, easing: 'ease-in', fill: 'forwards' });
+      setTimeout(function() { if (bhEl.parentNode) bhEl.parentNode.removeChild(bhEl); }, 460);
+    }, 680);
+  }, 320);
+}
+
+function spawnBlackholeParticles(cx, cy) {
+  var colors = ['#aa00ff','#cc44ff','#8800cc','#ee88ff','#6600aa','#ff00ff','#9922ee'];
+  var count = 18;
+  for (var i = 0; i < count; i++) {
+    (function(idx) {
+      var s  = document.createElement('div');
+      var sz = 5 + Math.random() * 10;
+      var angle = (idx / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      var dist  = 45 + Math.random() * 75;
+      s.style.cssText =
+        'position:fixed;z-index:10600;width:' + sz + 'px;height:' + sz + 'px;' +
+        'left:' + (cx - sz/2) + 'px;top:' + (cy - sz/2) + 'px;' +
+        'background:' + colors[idx % colors.length] + ';' +
+        'border-radius:50%;pointer-events:none;' +
+        'box-shadow:0 0 7px ' + colors[idx % colors.length] + ';';
+      document.body.appendChild(s);
+      s.animate([
+        { transform: 'translate(0,0) scale(1)', opacity: 0.9 },
+        { transform: 'translate(' + (Math.cos(angle)*dist*0.5) + 'px,' +
+                                    (Math.sin(angle)*dist*0.5) + 'px) scale(0.85)', opacity: 0.8, offset: 0.28 },
+        { transform: 'translate(' + (Math.cos(angle)*dist) + 'px,' +
+                                    (Math.sin(angle)*dist) + 'px) scale(0)', opacity: 0 }
+      ], { duration: 580 + Math.random() * 320, easing: 'ease-out', fill: 'forwards' });
+      setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 950);
+    })(i);
+  }
+}
+
+function resetBlackholeState() {
+  if (blackholeSelectCleanup) { blackholeSelectCleanup(); blackholeSelectCleanup = null; }
+  if (blackholeFigActive && blackholeFigTarget && blackholeFigHandler) {
+    blackholeFigTarget.removeEventListener('pointerdown', blackholeFigHandler);
+  }
+  blackholeFigActive  = false;
+  blackholeFigTarget  = null;
+  blackholeFigHandler = null;
+  if (blackholeHandAnim) { blackholeHandAnim.cancel(); blackholeHandAnim = null; }
+  hideBlackholeTutorial();
 }
 
 function activateFreezeEffect() {
@@ -1300,6 +1753,7 @@ function loadLevel(idx) {
   hideBoosterTutorial();
   resetFreezeState();
   resetDynamiteState();
+  resetBlackholeState();
   if (idx === 7) {
     freezeCharges = 0;
     var freezeBtn = document.getElementById('booster-freeze');
@@ -1316,6 +1770,15 @@ function loadLevel(idx) {
       dynBtn.querySelector('.booster-icon').textContent = '🔒';
       dynBtn.querySelector('.booster-lvl').textContent  = 'Lv.13';
       dynBtn.classList.remove('unlocked', 'depleted');
+    }
+  }
+  if (idx === 17) {
+    blackholeCharges = 0;
+    var bhBtn = document.getElementById('booster-blackhole');
+    if (bhBtn) {
+      bhBtn.querySelector('.booster-icon').textContent = '🔒';
+      bhBtn.querySelector('.booster-lvl').textContent  = 'Lv.18';
+      bhBtn.classList.remove('unlocked', 'depleted');
     }
   }
   var cfg = LEVELS[idx] || {};
@@ -1392,15 +1855,13 @@ restartBtn.addEventListener('click', function() {
   restartCurrentLevel();
 });
 startBtn.addEventListener('click', function() {
-  var chainBoosterTut  = (currentLevel === 7);
-  var chainDynamiteTut = (currentLevel === 12);
+  var chainBoosterTut    = (currentLevel === 7);
+  var chainDynamiteTut   = (currentLevel === 12);
+  var chainBlackholeTut  = (currentLevel === 17);
   setStartGate(false);
-  if (chainBoosterTut) {
-    setTimeout(showBoosterTutorial, startOverlayFadeMs + 60);
-  }
-  if (chainDynamiteTut) {
-    setTimeout(showDynamiteTutorial, startOverlayFadeMs + 60);
-  }
+  if (chainBoosterTut)   setTimeout(showBoosterTutorial,   startOverlayFadeMs + 60);
+  if (chainDynamiteTut)  setTimeout(showDynamiteTutorial,  startOverlayFadeMs + 60);
+  if (chainBlackholeTut) setTimeout(showBlackholeTutorial, startOverlayFadeMs + 60);
 });
 outTimeContinueBtn.addEventListener('click', function() {
   addBonusTime(20);
@@ -1423,6 +1884,13 @@ var dynamiteTutorialBtn = document.getElementById('dynamite-tutorial-btn');
 if (dynamiteTutorialBtn) {
   dynamiteTutorialBtn.addEventListener('click', function() {
     if (dynamiteTutorialActive) activateDynamite();
+  });
+}
+
+var blackholeTutorialBtn = document.getElementById('blackhole-tutorial-btn');
+if (blackholeTutorialBtn) {
+  blackholeTutorialBtn.addEventListener('click', function() {
+    if (blackholeTutorialActive) activateBlackhole();
   });
 }
 
@@ -1451,6 +1919,19 @@ if (dynamiteBtnHud) {
     dynamiteCharges--;
     updateDynamiteDisplay();
     startDynamiteSelectMode();
+  });
+}
+
+var blackholeBtnHud = document.getElementById('booster-blackhole');
+if (blackholeBtnHud) {
+  blackholeBtnHud.addEventListener('pointerdown', function() {
+    if (blackholeTutorialActive) return;
+    if (!blackholeBtnHud.classList.contains('unlocked')) return;
+    if (blackholeFigActive) return;
+    if (blackholeCharges <= 0) { shakeBooster(blackholeBtnHud); return; }
+    blackholeCharges--;
+    updateBlackholeDisplay();
+    startBlackholeSelectMode();
   });
 }
 
