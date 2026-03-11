@@ -1001,6 +1001,35 @@ body {
   animation: boosterAppear 0.48s cubic-bezier(.22,.61,.36,1) forwards;
 }
 
+/* ── Booster depleted state ───────────────────────────────────────────── */
+.booster-btn.depleted {
+  opacity: 0.42;
+  filter: grayscale(0.72) brightness(0.78);
+  cursor: default;
+}
+
+/* ── Booster shake (empty tap) ────────────────────────────────────────── */
+@keyframes boosterShakeAnim {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  18%  { transform: translateX(-5px) rotate(-4deg); }
+  42%  { transform: translateX(5px)  rotate(4deg); }
+  68%  { transform: translateX(-3px) rotate(-2deg); }
+  84%  { transform: translateX(2px)  rotate(1deg); }
+}
+.booster-btn.booster-shake {
+  animation: boosterShakeAnim 0.34s ease-in-out;
+}
+
+/* ── Dynamite selectable (free use) ──────────────────────────────────── */
+@keyframes dynamiteSelectGlow {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(255, 100, 0, 0.55)); }
+  50%       { filter: drop-shadow(0 0 14px rgba(255, 80, 0, 0.9)) brightness(1.12); }
+}
+.figure.dynamite-selectable {
+  animation: dynamiteSelectGlow 0.75s ease-in-out infinite;
+  cursor: crosshair !important;
+}
+
 /* ── frozen timer ─────────────────────────────────────────────────────── */
 #time-value {
   transition: background 0.55s ease, border-color 0.55s ease,

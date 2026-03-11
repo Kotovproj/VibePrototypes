@@ -33,6 +33,9 @@ var dynamiteHandAnim = null;
 var dynamiteFigActive = false;
 var dynamiteFigTarget = null;
 var dynamiteFigHandler = null;
+var dynamiteSelectCleanup = null;
+var freezeCharges   = 0;
+var dynamiteCharges = 0;
 var startOverlayFadeMs = 300;
 var tutorialHandEl = document.getElementById('tutorial-hand');
 var levelTimerId = null;
@@ -649,6 +652,30 @@ function drawDynamiteSymbol() {
 }
 startOverlayConfigs[12].draw = drawDynamiteSymbol;
 
+// ── Booster charge helpers ────────────────────────────────────────────────────
+
+function updateFreezeDisplay() {
+  var btn = document.getElementById('booster-freeze');
+  if (!btn || !btn.classList.contains('unlocked')) return;
+  btn.querySelector('.booster-lvl').textContent = String(freezeCharges);
+  if (freezeCharges <= 0) btn.classList.add('depleted');
+  else                    btn.classList.remove('depleted');
+}
+
+function updateDynamiteDisplay() {
+  var btn = document.getElementById('booster-dynamite');
+  if (!btn || !btn.classList.contains('unlocked')) return;
+  btn.querySelector('.booster-lvl').textContent = String(dynamiteCharges);
+  if (dynamiteCharges <= 0) btn.classList.add('depleted');
+  else                      btn.classList.remove('depleted');
+}
+
+function shakeBooster(btn) {
+  if (!btn || btn.classList.contains('booster-shake')) return;
+  btn.classList.add('booster-shake');
+  setTimeout(function() { btn.classList.remove('booster-shake'); }, 340);
+}
+
 // ── Booster Tutorial ──────────────────────────────────────────────────────────
 
 function showBoosterTutorial() {
@@ -685,7 +712,7 @@ function boosterBreakAnimation(btn, rect) {
   setTimeout(function() {
     if (!boosterTutorialActive) return;
     btn.querySelector('.booster-icon').textContent = '❄️';
-    btn.querySelector('.booster-lvl').textContent  = '1';
+    btn.querySelector('.booster-lvl').textContent  = '2';
     btn.classList.remove('shatter-out');
     btn.classList.add('unlocked', 'appear-in');
     setTimeout(function() {
@@ -883,7 +910,7 @@ function dynamiteBreakAnimation(btn, rect) {
   setTimeout(function() {
     if (!dynamiteTutorialActive) return;
     btn.querySelector('.booster-icon').textContent = '💣';
-    btn.querySelector('.booster-lvl').textContent  = '1';
+    btn.querySelector('.booster-lvl').textContent  = '2';
     btn.classList.remove('shatter-out');
     btn.classList.add('unlocked', 'appear-in');
     setTimeout(function() {
@@ -965,20 +992,53 @@ function hideDynamiteTutorial() {
 
 function activateDynamite() {
   hideDynamiteTutorial();
-  // Unlock the actual HUD booster button
+  // Unlock the actual HUD button and grant 1 charge (tutorial use is free)
   var srcBtn = document.getElementById('booster-dynamite');
   if (srcBtn) {
     srcBtn.querySelector('.booster-icon').textContent = '💣';
-    srcBtn.querySelector('.booster-lvl').textContent  = '1';
     srcBtn.classList.add('unlocked');
   }
-  // After overlay fade, highlight a figure for the player to blow up
+  dynamiteCharges = 1;
+  updateDynamiteDisplay();
+  // After overlay fade, highlight a figure for the free tutorial demonstration
   setTimeout(function() {
     var figures = document.querySelectorAll('.figure');
     if (!figures.length) return;
     var fig = figures[Math.floor(figures.length / 2)];
     startDynamiteFigHighlight(fig);
   }, 380);
+}
+
+// Free-use dynamite: player taps any figure
+function startDynamiteSelectMode() {
+  var figures = Array.from(document.querySelectorAll('.figure'));
+  if (!figures.length) { dynamiteCharges++; updateDynamiteDisplay(); return; }
+  dynamiteFigActive = true;
+  sceneEl.style.pointerEvents = 'none';
+  var handlers = [];
+  function cleanup() {
+    figures.forEach(function(fig, i) {
+      fig.classList.remove('dynamite-selectable');
+      fig.style.pointerEvents = '';
+      if (handlers[i]) fig.removeEventListener('pointerdown', handlers[i]);
+    });
+    dynamiteSelectCleanup = null;
+  }
+  dynamiteSelectCleanup = function() { cleanup(); dynamiteFigActive = false; sceneEl.style.pointerEvents = ''; };
+  figures.forEach(function(fig, i) {
+    fig.classList.add('dynamite-selectable');
+    fig.style.pointerEvents = 'auto';
+    var h = function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      cleanup();
+      dynamiteFigActive = false;
+      sceneEl.style.pointerEvents = '';
+      startDynamiteExplosion(fig);
+    };
+    handlers[i] = h;
+    fig.addEventListener('pointerdown', h);
+  });
 }
 
 function startDynamiteFigHighlight(fig) {
@@ -1133,6 +1193,7 @@ function spawnExplosionParticles(cx, cy, baseColor) {
 }
 
 function resetDynamiteState() {
+  if (dynamiteSelectCleanup) { dynamiteSelectCleanup(); dynamiteSelectCleanup = null; }
   if (dynamiteFigActive && dynamiteFigTarget && dynamiteFigHandler) {
     dynamiteFigTarget.removeEventListener('pointerdown', dynamiteFigHandler);
   }
@@ -1143,16 +1204,8 @@ function resetDynamiteState() {
   hideDynamiteTutorial();
 }
 
-function activateFreeze() {
-  hideBoosterTutorial();
-  // Update original booster button to unlocked state
-  var srcBtn = document.getElementById('booster-freeze');
-  if (srcBtn) {
-    srcBtn.querySelector('.booster-icon').textContent = '❄️';
-    srcBtn.querySelector('.booster-lvl').textContent  = '1';
-    srcBtn.classList.add('unlocked');
-  }
-  // World freeze effect
+function activateFreezeEffect() {
+  if (freezeActive) return;
   document.body.classList.add('frozen');
   var frameEl = document.getElementById('frame');
   if (frameEl) frameEl.classList.add('frozen');
@@ -1161,13 +1214,25 @@ function activateFreeze() {
   spawnFreezeFlash();
   spawnIceParticles();
   spawnFreezeSceneOverlay();
-  // Freeze timer
   freezeActive = true;
   clearLevelTimer();
   timeValue.classList.add('frozen');
   if (timeCaptionEl) timeCaptionEl.classList.add('frozen');
   if (hudMainEl) hudMainEl.classList.add('frozen');
   freezeTimerId = setTimeout(deactivateFreeze, 10000);
+}
+
+function activateFreeze() {
+  hideBoosterTutorial();
+  // Unlock button and grant 1 charge (tutorial use is free demonstration)
+  var srcBtn = document.getElementById('booster-freeze');
+  if (srcBtn) {
+    srcBtn.querySelector('.booster-icon').textContent = '❄️';
+    srcBtn.classList.add('unlocked');
+  }
+  freezeCharges = 1;
+  updateFreezeDisplay();
+  activateFreezeEffect();
 }
 
 function deactivateFreeze() {
@@ -1236,19 +1301,21 @@ function loadLevel(idx) {
   resetFreezeState();
   resetDynamiteState();
   if (idx === 7) {
+    freezeCharges = 0;
     var freezeBtn = document.getElementById('booster-freeze');
     if (freezeBtn) {
       freezeBtn.querySelector('.booster-icon').textContent = '🔒';
       freezeBtn.querySelector('.booster-lvl').textContent  = 'Lv.8';
-      freezeBtn.classList.remove('unlocked');
+      freezeBtn.classList.remove('unlocked', 'depleted');
     }
   }
   if (idx === 12) {
+    dynamiteCharges = 0;
     var dynBtn = document.getElementById('booster-dynamite');
     if (dynBtn) {
       dynBtn.querySelector('.booster-icon').textContent = '🔒';
       dynBtn.querySelector('.booster-lvl').textContent  = 'Lv.13';
-      dynBtn.classList.remove('unlocked');
+      dynBtn.classList.remove('unlocked', 'depleted');
     }
   }
   var cfg = LEVELS[idx] || {};
@@ -1356,6 +1423,34 @@ var dynamiteTutorialBtn = document.getElementById('dynamite-tutorial-btn');
 if (dynamiteTutorialBtn) {
   dynamiteTutorialBtn.addEventListener('click', function() {
     if (dynamiteTutorialActive) activateDynamite();
+  });
+}
+
+// ── Real HUD booster buttons ──────────────────────────────────────────────────
+
+var freezeBtnHud = document.getElementById('booster-freeze');
+if (freezeBtnHud) {
+  freezeBtnHud.addEventListener('pointerdown', function() {
+    if (boosterTutorialActive) return;           // tutorial handles it via overlay
+    if (!freezeBtnHud.classList.contains('unlocked')) return;
+    if (freezeActive) return;                     // already frozen
+    if (freezeCharges <= 0) { shakeBooster(freezeBtnHud); return; }
+    freezeCharges--;
+    updateFreezeDisplay();
+    activateFreezeEffect();
+  });
+}
+
+var dynamiteBtnHud = document.getElementById('booster-dynamite');
+if (dynamiteBtnHud) {
+  dynamiteBtnHud.addEventListener('pointerdown', function() {
+    if (dynamiteTutorialActive) return;          // tutorial handles it via overlay
+    if (!dynamiteBtnHud.classList.contains('unlocked')) return;
+    if (dynamiteFigActive) return;               // already in select mode
+    if (dynamiteCharges <= 0) { shakeBooster(dynamiteBtnHud); return; }
+    dynamiteCharges--;
+    updateDynamiteDisplay();
+    startDynamiteSelectMode();
   });
 }
 
