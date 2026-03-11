@@ -21,7 +21,18 @@ var startOverlayConfigs = {
     desc: 'Freezes time for 10 seconds!',
     draw: null, // assigned below
   },
+  12: {
+    arrowText: '',
+    subtitle: 'You have unlocked the <b style="color:#ff6b35">Dynamite!</b>',
+    desc: 'Tap a block to blow it up!',
+    draw: null, // assigned below
+  },
 };
+var dynamiteTutorialActive = false;
+var dynamiteHandAnim = null;
+var dynamiteFigActive = false;
+var dynamiteFigTarget = null;
+var dynamiteFigHandler = null;
 var startOverlayFadeMs = 300;
 var tutorialHandEl = document.getElementById('tutorial-hand');
 var levelTimerId = null;
@@ -509,6 +520,135 @@ function drawFreezeTimerFigure() {
 }
 startOverlayConfigs[7].draw = drawFreezeTimerFigure;
 
+function drawDynamiteSymbol() {
+  var canvas = document.getElementById('unlock-canvas');
+  if (!canvas) return;
+  var W = 152, H = 170;
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  var cx = W / 2 - 4, cy = H / 2 + 14;
+  var r = 50;
+  // Outer red glow
+  var glow = ctx.createRadialGradient(cx, cy, r * 0.4, cx, cy, r * 1.65);
+  glow.addColorStop(0, 'rgba(255, 100, 0, 0.38)');
+  glow.addColorStop(1, 'rgba(220, 30, 0, 0)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.65, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+  // Bomb body
+  var bodyGrad = ctx.createRadialGradient(cx - r * 0.28, cy - r * 0.28, 4, cx, cy, r);
+  bodyGrad.addColorStop(0, '#525252');
+  bodyGrad.addColorStop(0.48, '#212121');
+  bodyGrad.addColorStop(1, '#0a0a0a');
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.shadowColor = 'rgba(0,0,0,0.75)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.restore();
+  // Red equator stripe
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(210, 28, 8, 0.52)';
+  ctx.fillRect(cx - r, cy + r * 0.22, r * 2, r * 0.55);
+  ctx.restore();
+  // Highlight
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  var hl = ctx.createRadialGradient(cx - r * 0.26, cy - r * 0.30, 2, cx, cy, r * 0.88);
+  hl.addColorStop(0, 'rgba(255,255,255,0.28)');
+  hl.addColorStop(0.38, 'rgba(255,255,255,0.07)');
+  hl.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hl;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  ctx.restore();
+  // Body rim
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(90,90,90,0.55)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  // Fuse socket
+  var sockX = cx + r * 0.60, sockY = cy - r * 0.68;
+  ctx.save();
+  var metalGrad = ctx.createLinearGradient(sockX - 10, sockY - 6, sockX + 10, sockY + 7);
+  metalGrad.addColorStop(0, '#aaa');
+  metalGrad.addColorStop(0.5, '#e8e8e8');
+  metalGrad.addColorStop(1, '#666');
+  ctx.beginPath();
+  ctx.ellipse(sockX, sockY, 10, 7, 0, 0, Math.PI * 2);
+  ctx.fillStyle = metalGrad;
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 4;
+  ctx.fill();
+  ctx.restore();
+  // Fuse cord
+  var fuseEndX = cx + 28, fuseEndY = cy - r - 44;
+  ctx.save();
+  ctx.strokeStyle = '#7B3810';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(sockX, sockY - 5);
+  ctx.bezierCurveTo(sockX + 8, sockY - 22, fuseEndX - 8, fuseEndY + 24, fuseEndX, fuseEndY);
+  ctx.stroke();
+  ctx.strokeStyle = '#C8601A';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([4, 5]);
+  ctx.beginPath();
+  ctx.moveTo(sockX, sockY - 5);
+  ctx.bezierCurveTo(sockX + 8, sockY - 22, fuseEndX - 8, fuseEndY + 24, fuseEndX, fuseEndY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  // Spark glow at fuse tip
+  ctx.save();
+  var sparkGlow = ctx.createRadialGradient(fuseEndX, fuseEndY, 0, fuseEndX, fuseEndY, 20);
+  sparkGlow.addColorStop(0, 'rgba(255,240,80,0.95)');
+  sparkGlow.addColorStop(0.42, 'rgba(255,130,0,0.72)');
+  sparkGlow.addColorStop(1, 'rgba(255,60,0,0)');
+  ctx.beginPath();
+  ctx.arc(fuseEndX, fuseEndY, 20, 0, Math.PI * 2);
+  ctx.fillStyle = sparkGlow;
+  ctx.fill();
+  var sparkCols = ['#fff700','#ff8800','#ffffff','#ff4d00'];
+  for (var si = 0; si < 8; si++) {
+    var sa = (si / 8) * Math.PI * 2 + 0.2;
+    var sl = 7 + (si % 2) * 6;
+    ctx.beginPath();
+    ctx.moveTo(fuseEndX, fuseEndY);
+    ctx.lineTo(fuseEndX + Math.cos(sa) * sl, fuseEndY + Math.sin(sa) * sl);
+    ctx.strokeStyle = sparkCols[si % 4];
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.arc(fuseEndX, fuseEndY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#ffee00';
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.restore();
+}
+startOverlayConfigs[12].draw = drawDynamiteSymbol;
+
 // ── Booster Tutorial ──────────────────────────────────────────────────────────
 
 function showBoosterTutorial() {
@@ -707,6 +847,302 @@ function hideBoosterTutorial() {
   sceneEl.style.pointerEvents = '';
 }
 
+// ── Dynamite Tutorial ─────────────────────────────────────────────────────────
+
+function showDynamiteTutorial() {
+  var overlay   = document.getElementById('dynamite-tutorial');
+  var tutBtn    = document.getElementById('dynamite-tutorial-btn');
+  var spotlight = document.getElementById('dynamite-spotlight');
+  var srcBtn    = document.getElementById('booster-dynamite');
+  if (!overlay || !tutBtn || !spotlight || !srcBtn) return;
+  dynamiteTutorialActive = true;
+  sceneEl.style.pointerEvents = 'none';
+  var rect = srcBtn.getBoundingClientRect();
+  spotlight.style.left   = (rect.left - 12) + 'px';
+  spotlight.style.top    = (rect.top  - 12) + 'px';
+  spotlight.style.width  = (rect.width  + 24) + 'px';
+  spotlight.style.height = (rect.height + 24) + 'px';
+  tutBtn.style.left   = rect.left   + 'px';
+  tutBtn.style.top    = rect.top    + 'px';
+  tutBtn.style.width  = rect.width  + 'px';
+  tutBtn.style.height = rect.height + 'px';
+  tutBtn.querySelector('.booster-icon').textContent = '🔒';
+  tutBtn.querySelector('.booster-lvl').textContent  = 'Lv.13';
+  tutBtn.classList.remove('unlocked', 'shatter-out', 'appear-in');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(function() { overlay.style.opacity = '1'; });
+  startDynamiteHandAnim(tutBtn);
+  setTimeout(function() {
+    if (dynamiteTutorialActive) dynamiteBreakAnimation(tutBtn, rect);
+  }, 650);
+}
+
+function dynamiteBreakAnimation(btn, rect) {
+  btn.classList.add('shatter-out');
+  spawnDynamiteShards(rect);
+  setTimeout(function() {
+    if (!dynamiteTutorialActive) return;
+    btn.querySelector('.booster-icon').textContent = '💣';
+    btn.querySelector('.booster-lvl').textContent  = '1';
+    btn.classList.remove('shatter-out');
+    btn.classList.add('unlocked', 'appear-in');
+    setTimeout(function() {
+      if (!dynamiteTutorialActive) return;
+      btn.classList.remove('appear-in');
+      startDynamiteHandAnim(btn);
+    }, 480);
+  }, 440);
+}
+
+function spawnDynamiteShards(rect) {
+  var cx = rect.left + rect.width  / 2;
+  var cy = rect.top  + rect.height / 2;
+  var colors = ['#ff4400','#ff8800','#ffcc00','#ff2200','#ff6600','#ffee22','#ff1100','#ffaa00'];
+  for (var i = 0; i < 8; i++) {
+    (function(idx) {
+      var s = document.createElement('div');
+      var sz = 7 + Math.random() * 11;
+      s.style.cssText =
+        'position:fixed;z-index:10503;width:' + sz + 'px;height:' + sz + 'px;' +
+        'left:' + (cx - sz/2 + (Math.random()-0.5)*20) + 'px;' +
+        'top:'  + (cy - sz/2 + (Math.random()-0.5)*20) + 'px;' +
+        'background:' + colors[idx % colors.length] + ';' +
+        'border-radius:' + (Math.random() > 0.5 ? '50%' : '4px') + ';' +
+        'pointer-events:none;opacity:1;';
+      document.body.appendChild(s);
+      var angle = (idx / 8) * Math.PI * 2 + (Math.random()-0.5) * 0.8;
+      var dist  = 48 + Math.random() * 52;
+      s.animate([
+        { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 },
+        { transform: 'translate(' + (Math.cos(angle)*dist) + 'px,' +
+                                    (Math.sin(angle)*dist) + 'px)' +
+                     ' scale(0.15) rotate(' + (Math.random()*360) + 'deg)', opacity: 0 }
+      ], { duration: 500, easing: 'ease-out', fill: 'forwards' });
+      setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 520);
+    })(i);
+  }
+}
+
+function startDynamiteHandAnim(btn) {
+  if (!dynamiteTutorialActive) return;
+  if (dynamiteHandAnim) { dynamiteHandAnim.cancel(); dynamiteHandAnim = null; }
+  var rect   = btn.getBoundingClientRect();
+  var hw     = 84;
+  var handX  = rect.left + rect.width * 0.44 - hw * 0.4;
+  var startY = window.innerHeight + 10;
+  var tapY   = rect.bottom - rect.height * 0.32 - hw * 0.18;
+  tutorialHandEl.style.display   = 'block';
+  tutorialHandEl.style.left      = handX + 'px';
+  tutorialHandEl.style.top       = startY + 'px';
+  tutorialHandEl.style.zIndex    = '10503';
+  requestAnimationFrame(function() { tutorialHandEl.style.opacity = '1'; });
+  var dy = tapY - startY;
+  dynamiteHandAnim = tutorialHandEl.animate([
+    { transform: 'translateY(0)',                               opacity: 0 },
+    { transform: 'translateY(' + (dy * 0.58) + 'px)',          opacity: 1, offset: 0.16 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.40 },
+    { transform: 'translateY(' + dy + 'px) scale(0.88)',        offset: 0.52, easing: 'ease-in-out' },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.64 },
+    { transform: 'translateY(' + (dy * 0.86) + 'px)',          offset: 0.82 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 1 },
+  ], { duration: 1500, easing: 'ease-in-out', iterations: Infinity });
+}
+
+function hideDynamiteTutorial() {
+  if (!dynamiteTutorialActive) return;
+  dynamiteTutorialActive = false;
+  if (dynamiteHandAnim) { dynamiteHandAnim.cancel(); dynamiteHandAnim = null; }
+  tutorialHandEl.style.opacity = '0';
+  tutorialHandEl.style.zIndex  = '';
+  setTimeout(function() { tutorialHandEl.style.display = 'none'; }, 220);
+  var overlay = document.getElementById('dynamite-tutorial');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(function() { overlay.style.display = 'none'; }, 300);
+  }
+  sceneEl.style.pointerEvents = '';
+}
+
+function activateDynamite() {
+  hideDynamiteTutorial();
+  // Unlock the actual HUD booster button
+  var srcBtn = document.getElementById('booster-dynamite');
+  if (srcBtn) {
+    srcBtn.querySelector('.booster-icon').textContent = '💣';
+    srcBtn.querySelector('.booster-lvl').textContent  = '1';
+    srcBtn.classList.add('unlocked');
+  }
+  // After overlay fade, highlight a figure for the player to blow up
+  setTimeout(function() {
+    var figures = document.querySelectorAll('.figure');
+    if (!figures.length) return;
+    var fig = figures[Math.floor(figures.length / 2)];
+    startDynamiteFigHighlight(fig);
+  }, 380);
+}
+
+function startDynamiteFigHighlight(fig) {
+  dynamiteFigActive = true;
+  dynamiteFigTarget = fig;
+  fig.classList.add('dynamite-target');
+  fig.style.zIndex = '200';
+  fig.style.pointerEvents = 'auto';
+  sceneEl.style.pointerEvents = 'none';
+  // Animate hand onto the figure
+  startDynamiteFigHandAnim(fig);
+  // One-time click handler
+  dynamiteFigHandler = function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!dynamiteFigActive) return;
+    dynamiteFigActive = false;
+    dynamiteFigTarget = null;
+    if (dynamiteHandAnim) { dynamiteHandAnim.cancel(); dynamiteHandAnim = null; }
+    tutorialHandEl.style.opacity = '0';
+    setTimeout(function() { tutorialHandEl.style.display = 'none'; }, 220);
+    fig.removeEventListener('pointerdown', dynamiteFigHandler);
+    dynamiteFigHandler = null;
+    fig.classList.remove('dynamite-target');
+    fig.style.zIndex = '';
+    sceneEl.style.pointerEvents = '';
+    startDynamiteExplosion(fig);
+  };
+  fig.addEventListener('pointerdown', dynamiteFigHandler);
+}
+
+function startDynamiteFigHandAnim(fig) {
+  if (!dynamiteFigActive) return;
+  if (dynamiteHandAnim) { dynamiteHandAnim.cancel(); dynamiteHandAnim = null; }
+  var rect   = fig.getBoundingClientRect();
+  var hw     = 84;
+  var handX  = rect.left + rect.width  * 0.44 - hw * 0.4;
+  var startY = window.innerHeight + 10;
+  var tapY   = rect.top  + rect.height * 0.52 - hw * 0.18;
+  tutorialHandEl.style.display = 'block';
+  tutorialHandEl.style.left    = handX + 'px';
+  tutorialHandEl.style.top     = startY + 'px';
+  tutorialHandEl.style.zIndex  = '10505';
+  requestAnimationFrame(function() { tutorialHandEl.style.opacity = '1'; });
+  var dy = tapY - startY;
+  dynamiteHandAnim = tutorialHandEl.animate([
+    { transform: 'translateY(0)',                               opacity: 0 },
+    { transform: 'translateY(' + (dy * 0.58) + 'px)',          opacity: 1, offset: 0.16 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.40 },
+    { transform: 'translateY(' + dy + 'px) scale(0.88)',        offset: 0.52, easing: 'ease-in-out' },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 0.64 },
+    { transform: 'translateY(' + (dy * 0.86) + 'px)',          offset: 0.82 },
+    { transform: 'translateY(' + dy + 'px)',                    offset: 1 },
+  ], { duration: 1400, easing: 'ease-in-out', iterations: Infinity });
+}
+
+function startDynamiteExplosion(fig) {
+  var rect = fig.getBoundingClientRect();
+  var cx = rect.left + rect.width  / 2;
+  var cy = rect.top  + rect.height / 2;
+  // Place dynamite emoji on the figure
+  var dynEl = document.createElement('div');
+  dynEl.className = 'dynamite-overlay';
+  dynEl.textContent = '💣';
+  dynEl.style.left = cx + 'px';
+  dynEl.style.top  = cy + 'px';
+  document.body.appendChild(dynEl);
+  // Beep 3 times then explode
+  var beepCount = 0;
+  function doBeep() {
+    beepCount++;
+    // Visual beep ring
+    var ring = document.createElement('div');
+    ring.className = 'dynamite-beep-ring';
+    ring.style.left = cx + 'px';
+    ring.style.top  = cy + 'px';
+    document.body.appendChild(ring);
+    setTimeout(function() { if (ring.parentNode) ring.parentNode.removeChild(ring); }, 420);
+    // Shake the dynamite emoji
+    dynEl.animate([
+      { transform: 'translate(-50%,-50%) rotate(-12deg) scale(1.1)' },
+      { transform: 'translate(-50%,-50%) rotate(12deg)  scale(1.1)' },
+      { transform: 'translate(-50%,-50%) rotate(-6deg)  scale(1.05)' },
+      { transform: 'translate(-50%,-50%) rotate(0deg)   scale(1)' },
+    ], { duration: 250, easing: 'ease-in-out' });
+    if (beepCount < 3) {
+      setTimeout(doBeep, 420);
+    } else {
+      setTimeout(function() { triggerDynamiteExplosion(fig, dynEl, cx, cy); }, 380);
+    }
+  }
+  setTimeout(doBeep, 280);
+}
+
+function triggerDynamiteExplosion(fig, dynEl, cx, cy) {
+  if (dynEl.parentNode) dynEl.parentNode.removeChild(dynEl);
+  spawnExplosionParticles(cx, cy, fig._color || '#ff6600');
+  // Flash
+  var flash = document.createElement('div');
+  flash.style.cssText =
+    'position:fixed;inset:0;z-index:10599;background:rgba(255,170,30,0.72);pointer-events:none;';
+  document.body.appendChild(flash);
+  flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' });
+  setTimeout(function() { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 260);
+  // Remove the figure cleanly
+  freeCells(fig);
+  fig.style.transition = 'transform 0.12s ease-out, opacity 0.12s ease-in';
+  fig.style.transform  = 'scale(1.2)';
+  fig.style.opacity    = '0';
+  setTimeout(function() {
+    fig.remove();
+    if (typeof window.onFigureRemoved === 'function') window.onFigureRemoved(fig);
+    figureCount--;
+    if (figureCount === 0) {
+      setTimeout(function() {
+        if (typeof window.onLevelComplete === 'function') window.onLevelComplete();
+      }, 500);
+    }
+  }, 140);
+}
+
+function spawnExplosionParticles(cx, cy, baseColor) {
+  var colors = ['#ff3300','#ff6600','#ff9900','#ffcc00','#ffffff','#ff1500','#ffee22','#ff8800'];
+  var count = 28;
+  for (var i = 0; i < count; i++) {
+    (function(idx) {
+      var s  = document.createElement('div');
+      var sz = 7 + Math.random() * 20;
+      var angle = (idx / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+      var dist  = 70 + Math.random() * 130;
+      var startX = cx + (Math.random() - 0.5) * 18 - sz / 2;
+      var startY = cy + (Math.random() - 0.5) * 18 - sz / 2;
+      s.style.cssText =
+        'position:fixed;z-index:10600;width:' + sz + 'px;height:' + sz + 'px;' +
+        'left:' + startX + 'px;top:' + startY + 'px;' +
+        'background:' + colors[idx % colors.length] + ';' +
+        'border-radius:' + (Math.random() > 0.38 ? '50%' : '3px') + ';' +
+        'pointer-events:none;';
+      document.body.appendChild(s);
+      s.animate([
+        { transform: 'translate(0,0) scale(1.2) rotate(0deg)',      opacity: 1 },
+        { transform: 'translate(' + (Math.cos(angle)*dist*0.45) + 'px,' +
+                                    (Math.sin(angle)*dist*0.45 - 22) + 'px)' +
+                     ' scale(1.5) rotate(' + (Math.random()*200) + 'deg)', opacity: 1, offset: 0.22 },
+        { transform: 'translate(' + (Math.cos(angle)*dist) + 'px,' +
+                                    (Math.sin(angle)*dist) + 'px)' +
+                     ' scale(0.1) rotate(' + (Math.random()*720) + 'deg)', opacity: 0 }
+      ], { duration: 480 + Math.random() * 320, easing: 'ease-out', fill: 'forwards' });
+      setTimeout(function() { if (s.parentNode) s.parentNode.removeChild(s); }, 900);
+    })(i);
+  }
+}
+
+function resetDynamiteState() {
+  if (dynamiteFigActive && dynamiteFigTarget && dynamiteFigHandler) {
+    dynamiteFigTarget.removeEventListener('pointerdown', dynamiteFigHandler);
+  }
+  dynamiteFigActive  = false;
+  dynamiteFigTarget  = null;
+  dynamiteFigHandler = null;
+  if (dynamiteHandAnim) { dynamiteHandAnim.cancel(); dynamiteHandAnim = null; }
+  hideDynamiteTutorial();
+}
+
 function activateFreeze() {
   hideBoosterTutorial();
   // Update original booster button to unlocked state
@@ -798,12 +1234,21 @@ window.onLevelComplete = function() {
 function loadLevel(idx) {
   hideBoosterTutorial();
   resetFreezeState();
+  resetDynamiteState();
   if (idx === 7) {
     var freezeBtn = document.getElementById('booster-freeze');
     if (freezeBtn) {
       freezeBtn.querySelector('.booster-icon').textContent = '🔒';
       freezeBtn.querySelector('.booster-lvl').textContent  = 'Lv.8';
       freezeBtn.classList.remove('unlocked');
+    }
+  }
+  if (idx === 12) {
+    var dynBtn = document.getElementById('booster-dynamite');
+    if (dynBtn) {
+      dynBtn.querySelector('.booster-icon').textContent = '🔒';
+      dynBtn.querySelector('.booster-lvl').textContent  = 'Lv.13';
+      dynBtn.classList.remove('unlocked');
     }
   }
   var cfg = LEVELS[idx] || {};
@@ -880,10 +1325,14 @@ restartBtn.addEventListener('click', function() {
   restartCurrentLevel();
 });
 startBtn.addEventListener('click', function() {
-  var chainBoosterTut = (currentLevel === 7);
+  var chainBoosterTut  = (currentLevel === 7);
+  var chainDynamiteTut = (currentLevel === 12);
   setStartGate(false);
   if (chainBoosterTut) {
     setTimeout(showBoosterTutorial, startOverlayFadeMs + 60);
+  }
+  if (chainDynamiteTut) {
+    setTimeout(showDynamiteTutorial, startOverlayFadeMs + 60);
   }
 });
 outTimeContinueBtn.addEventListener('click', function() {
@@ -900,6 +1349,13 @@ var boosterTutorialBtn = document.getElementById('booster-tutorial-btn');
 if (boosterTutorialBtn) {
   boosterTutorialBtn.addEventListener('click', function() {
     if (boosterTutorialActive) activateFreeze();
+  });
+}
+
+var dynamiteTutorialBtn = document.getElementById('dynamite-tutorial-btn');
+if (dynamiteTutorialBtn) {
+  dynamiteTutorialBtn.addEventListener('click', function() {
+    if (dynamiteTutorialActive) activateDynamite();
   });
 }
 

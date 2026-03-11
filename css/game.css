@@ -1118,3 +1118,73 @@ body.frozen {
   0%   { transform: translateY(0)    scale(1);   opacity: 0.75; }
   100% { transform: translateY(-62px) scale(3.0); opacity: 0; }
 }
+
+/* ── Dynamite tutorial overlay ────────────────────────────────────────── */
+#dynamite-tutorial {
+  position: fixed;
+  inset: 0;
+  z-index: 10500;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: all;
+}
+#dynamite-spotlight {
+  position: fixed;
+  border-radius: 22px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.76);
+  pointer-events: none;
+  z-index: 10501;
+}
+#dynamite-tutorial-btn {
+  position: fixed;
+  z-index: 10502;
+  cursor: pointer;
+}
+
+/* ── Dynamite target figure highlight ────────────────────────────────── */
+@keyframes dynamiteGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 7px rgba(255, 120, 0, 0.75)) brightness(1.05);
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(255, 80, 0, 1)) drop-shadow(0 0 10px rgba(255, 210, 0, 0.85)) brightness(1.18);
+  }
+}
+.figure.dynamite-target {
+  animation: dynamiteGlow 0.7s ease-in-out infinite;
+  cursor: pointer !important;
+}
+
+/* ── Dynamite overlay on figure ──────────────────────────────────────── */
+@keyframes dynamiteBounceIn {
+  0%   { transform: translate(-50%, -50%) scale(0) rotate(-20deg); opacity: 0; }
+  60%  { transform: translate(-50%, -50%) scale(1.25) rotate(6deg); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(0deg);    opacity: 1; }
+}
+.dynamite-overlay {
+  position: fixed;
+  z-index: 10600;
+  font-size: 56px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.65));
+  animation: dynamiteBounceIn 0.32s cubic-bezier(.22,.61,.36,1) forwards;
+}
+
+/* ── Dynamite beep ring ──────────────────────────────────────────────── */
+@keyframes dynamiteBeepRing {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.95; border-width: 5px; }
+  100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0;    border-width: 1px; }
+}
+.dynamite-beep-ring {
+  position: fixed;
+  z-index: 10601;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 5px solid #ff5500;
+  pointer-events: none;
+  animation: dynamiteBeepRing 0.38s ease-out forwards;
+}
