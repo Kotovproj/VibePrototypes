@@ -56,9 +56,6 @@ var levelTimerSeconds = 50;
 var defaultLevelTimeSeconds = 50;
 var outTimeOverlay = document.getElementById('out-time-overlay');
 var outTimeContinueBtn = document.getElementById('out-time-continue');
-var outTimeCloseBtn = document.getElementById('out-time-close');
-var outTimeFreeBtn = document.getElementById('out-time-free');
-var holdHint = document.getElementById('hold-hint');
 var outTimeActive = false;
 var timeCaptionEl = document.getElementById('time-caption');
 var hudMainEl = document.getElementById('hud-main');
@@ -1864,13 +1861,7 @@ startBtn.addEventListener('click', function() {
   if (chainBlackholeTut) setTimeout(showBlackholeTutorial, startOverlayFadeMs + 60);
 });
 outTimeContinueBtn.addEventListener('click', function() {
-  addBonusTime(20);
-});
-outTimeFreeBtn.addEventListener('click', function() {
-  addBonusTime(20);
-});
-outTimeCloseBtn.addEventListener('click', function() {
-  restartCurrentLevel();
+  addBonusTime(60);
 });
 
 var boosterTutorialBtn = document.getElementById('booster-tutorial-btn');
@@ -1935,19 +1926,6 @@ if (blackholeBtnHud) {
   });
 }
 
-holdHint.addEventListener('pointerdown', function() {
-  if (!outTimeActive) return;
-  outTimeOverlay.classList.add('preview-board');
-});
-holdHint.addEventListener('pointerup', function() {
-  outTimeOverlay.classList.remove('preview-board');
-});
-holdHint.addEventListener('pointerleave', function() {
-  outTimeOverlay.classList.remove('preview-board');
-});
-holdHint.addEventListener('pointercancel', function() {
-  outTimeOverlay.classList.remove('preview-board');
-});
 
 window.addEventListener('resize', function() {
   resizePCanvas();
